@@ -1,0 +1,53 @@
+{
+  "name": "dsh-exam-fig",
+  "version": "0.1.0",
+  "description": "Exam figure generation for DSH: parameterised math/physics/chemistry diagrams, native Word equations, and a question-figure consistency check.",
+  "license": "MIT",
+  "type": "module",
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "index.js",
+    "cordis.patch.yml",
+    "python/examfig/**/*.py",
+    "docs/**/*.md",
+    "README.md",
+    "README.zh.md",
+    "LICENSE",
+    "THIRD-PARTY.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "compatibility": {
+      "dsh": "^0.2.2-rc.1"
+    }
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "exam",
+    "figure",
+    "matplotlib",
+    "schemdraw",
+    "rdkit",
+    "omml",
+    "education"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    }
+  }
+}
