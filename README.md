@@ -204,6 +204,88 @@ wrong on a schematic. So `circuit.py` places labels deterministically: component
 midpoint + outward normal × measured offset. **Ask what the label is anchored
 to before choosing a placement strategy.**
 
+### Collision audit: the last thing that runs before saving
+
+`labelplace.py` decides where a label goes. `layout.py` asks a different
+question afterwards: **is the finished picture actually readable?** Placement
+is decided one label at a time and cannot see what the last label did to the
+first, or that a label ended up on a curve or half outside the canvas.
+
+Every figure now ends with `layout.finish(fig, ax, path)` instead of
+`fig.savefig(...)`. It measures every text box, reports three kinds of
+collision, tries to nudge the offenders apart, saves, and returns:
+
+```json
+{"collisions": 0, "fixed": 2, "remaining": []}
+```
+
+That report travels back through the tool layer, and `exam_figure` prints it:
+
+```
+layout: clean (2 label(s) nudged apart)
+```
+
+or, when a repair fails:
+
+```
+layout: 1 UNRESOLVED COLLISION(S)
+  - overlap: "G" vs "G_{\perp}"
+```
+
+**Unresolved collisions are reported, never hidden.** A figure that cannot be
+fixed is still written to disk — the caller needs to see it — but the report
+says so, because a silently mislabelled figure is exactly the failure this
+project exists to prevent.
+
+Three severities, because they are not equally bad:
+
+| Severity | Meaning | Weight |
+| --- | --- | --- |
+| `overlap` | two labels on top of each other — both unreadable | 10 |
+| `frame` | a label outside the axes limits (and `bbox_inches="tight"` will stretch the page to fit it) | 6 |
+| `line` | a label sitting on a drawn stroke, or on the block outline | 1 |
+
+The repair tries 17 candidate displacements (multiples of the label's own
+width/height) and accepts one only if it strictly lowers that label's score.
+Anything else leaves the label exactly where it was.
+
+#### The `skip` list, and why it exists
+
+Some labels are *supposed* to touch what they describe: an angle mark sits in
+the wedge between its two rays, `O` sits in the angle between the axes, `x` and
+`y` sit at the ends of the axes they name. Auditing those as collisions and
+"fixing" them pushed the incline's `30°` label outside the figure — a real
+regression, caught by looking at the output rather than at the report.
+
+So `finish(..., skip=(...))` exempts named labels from the line and frame
+checks. **They are still checked for overlap**, because two pieces of text on
+top of each other are wrong under any convention.
+
+```python
+report = layout.finish(fig, ax, out_path, skip=("$O$", "$x$", "$y$"))
+```
+
+#### Two things the audit must not mistake for obstacles
+
+* **An empty annotation is an arrow.** `ax.annotate("", ...)` creates a `Text`
+  with no string; treating it as a label would report every arrowhead.
+* **A marker-only plot is a dot, not a stroke.** `ax.plot(x, y, "k.", ms=3.5)`
+  draws the vertex dot; counting it as a line would push every vertex label off
+  its vertex.
+
+### What the layout pass does *not* do
+
+It does not replace thinking about the figure. Three arrows from one origin,
+30° apart, cannot be labelled by any automatic pass — the labels have to go
+somewhere, and "somewhere" is decided by the geometry. The fix there was to
+change the *drawing*: shorter arrows, a flatter ramp, so the labels have room.
+See `figures/incline.py`.
+
+It also does not touch `molecule`: RDKit lays out structures and their atom
+labels itself, with no matplotlib axes to measure. That kind reports
+`{"applicable": false}` so a caller iterating over all nine does not have to
+special-case it.
+
 ---
 
 ## The four tools

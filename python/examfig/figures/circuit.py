@@ -28,7 +28,7 @@ resistor" iterations.
 import schemdraw
 import schemdraw.elements as elm
 
-from .. import env
+from .. import env, layout
 
 
 def circuit(emf=6.0, r1=2.0, r2=4.0, out_path="phys_circuit.png",
@@ -67,6 +67,10 @@ def circuit(emf=6.0, r1=2.0, r2=4.0, out_path="phys_circuit.png",
     # created with them switched off.  set_frame_on(False) only drops the
     # spine, so the numbers survive into the PNG unless axis("off") is called.
     ax.axis("off")
+
+    # Assigned inside the `with` block; pre-seeded so a report always exists
+    # even if schemdraw raises partway through.
+    report = {"collisions": 0, "fixed": 0, "remaining": []}
 
     with schemdraw.Drawing(show=False, canvas=ax) as d:
         d.config(unit=1.0, fontsize=12, lw=1.6, font="sans-serif")
@@ -132,7 +136,22 @@ def circuit(emf=6.0, r1=2.0, r2=4.0, out_path="phys_circuit.png",
         ax.set_xlim(bx0 - grow, bx1 + grow)
         ax.set_ylim(by0 - grow * 0.8, by1 + grow * 0.8)
 
+        # Audit before saving, but do not let `layout.finish` save: schemdraw's
+        # `d.save` goes through `Figure.save`, which resets the limits to its
+        # own content bbox and would throw away the viewport just computed
+        # above.  Deterministic placement already keeps the three labels
+        # outside the loop, so this is a verdict, not a repair.
+        fig.canvas.draw()
+        collisions = layout.audit(ax)
+        report = {
+            "collisions": len(collisions),
+            "fixed": 0,
+            "remaining": [{"kind": c["kind"], "label": c["a"], "with": c["b"]}
+                          for c in collisions],
+        }
+
         d.save(out_path, dpi=300)
 
     marks = {"R_1=%g" % r1, "R_2=%g" % r2, "%g V" % emf}
-    return {"current": emf / (r1 + r2), "loop_closed": True, "marks": marks}
+    return {"current": emf / (r1 + r2), "loop_closed": True, "marks": marks,
+            "layout": report}

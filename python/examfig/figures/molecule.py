@@ -48,8 +48,14 @@ def molecule(smiles_list, out_path="chem_structure.png", sub_size=(340, 270),
         os.makedirs(parent, exist_ok=True)
     img.save(out_path)
 
+    # No matplotlib axes here: RDKit lays out the structures and their atom
+    # labels itself, so there is nothing for `layout.audit` to measure.  Report
+    # the shape anyway, with `applicable: false`, so a caller iterating over
+    # every figure does not have to special-case this one.
+    report = {"collisions": 0, "fixed": 0, "remaining": [], "applicable": False}
+
     return {"formulas": formulas, "smiles": list(smiles_list),
-            "marks": set(formulas)}
+            "marks": set(formulas), "layout": report}
 
 
 def condensed(formula):

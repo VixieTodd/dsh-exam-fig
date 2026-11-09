@@ -239,6 +239,131 @@ def test_omml():
         check("oMath produced", False, "%s: %s" % (type(exc).__name__, exc))
 
 
+def test_layout(tmpdir):
+    print("\nlayout: collision audit and repair")
+    from examfig import layout
+
+    plt = env.pyplot()
+
+    def fresh(xlim=(0, 10), ylim=(0, 10)):
+        fig, ax = plt.subplots(figsize=(4, 3), dpi=100)
+        ax.set_xlim(*xlim)
+        ax.set_ylim(*ylim)
+        ax.axis("off")
+        return fig, ax
+
+    # Two labels at the same point overlap; the audit must say so.
+    fig, ax = fresh()
+    ax.text(5.0, 5.0, "hello", fontsize=12, ha="center", va="center")
+    ax.text(5.0, 5.0, "world", fontsize=12, ha="center", va="center")
+    fig.canvas.draw()
+    found = layout.audit(ax)
+    check("overlapping labels reported",
+          any(c["kind"] == layout.SEV_OVERLAP for c in found),
+          str(found))
+    check("overlap names both labels",
+          all(any(c["a"] == n or c["b"] == n for c in found) for n in ("hello", "world")),
+          str(found))
+    plt.close(fig)
+
+    # Two labels far apart: nothing to report.  This is the check that stops
+    # the auditor from crying wolf on every figure.
+    fig, ax = fresh()
+    ax.text(1.0, 1.0, "aaa", fontsize=12, ha="center", va="center")
+    ax.text(9.0, 9.0, "bbb", fontsize=12, ha="center", va="center")
+    fig.canvas.draw()
+    check("separated labels are clean", layout.audit(ax) == [], str(layout.audit(ax)))
+    plt.close(fig)
+
+    # Repair actually separates them.
+    fig, ax = fresh()
+    a = ax.text(5.0, 5.0, "first", fontsize=12, ha="center", va="center")
+    b = ax.text(5.0, 5.0, "second", fontsize=12, ha="center", va="center")
+    fig.canvas.draw()
+    before, after, moved = layout.resolve(ax)
+    check("repair finds something to move", bool(moved), str(moved))
+    check("repair removes the overlap",
+          not any(c["kind"] == layout.SEV_OVERLAP for c in after), str(after))
+    plt.close(fig)
+
+    # A label outside the frame is reported, and `resolve` may move it back in.
+    fig, ax = fresh()
+    ax.text(10.6, 5.0, "outside", fontsize=12, ha="center", va="center")
+    fig.canvas.draw()
+    check("out-of-frame label reported",
+          any(c["kind"] == layout.SEV_FRAME for c in layout.audit(ax)))
+    plt.close(fig)
+
+    # `skip` exempts a label from the line and frame checks but NOT from
+    # overlap: an angle mark belongs on its rays, two words do not belong on
+    # each other.
+    fig, ax = fresh()
+    ax.plot([0, 10], [5, 5], "k-")
+    ax.text(5.0, 5.0, "on-the-line", fontsize=12, ha="center", va="center")
+    fig.canvas.draw()
+    check("label on a line reported",
+          any(c["kind"] == layout.SEV_LINE for c in layout.audit(ax)))
+    check("skip exempts it",
+          layout.audit(ax, skip=("on-the-line",)) == [],
+          str(layout.audit(ax, skip=("on-the-line",))))
+    plt.close(fig)
+
+    # An empty annotation is an arrow, not a label: treating it as text would
+    # report every arrowhead as a collision.
+    fig, ax = fresh()
+    ax.annotate("", xy=(8, 8), xytext=(2, 2),
+                arrowprops=dict(arrowstyle="-|>", color="k"))
+    ax.text(5.0, 5.0, "x", fontsize=12, ha="center", va="center")
+    fig.canvas.draw()
+    check("empty annotation is not a label",
+          [t for _a, t in layout.labels(ax)] == ["x"],
+          str(layout.labels(ax)))
+    plt.close(fig)
+
+    # Marker-only lines draw dots, not strokes; they must not count as
+    # obstacles or every vertex dot would push its own label away.
+    fig, ax = fresh()
+    ax.plot([5], [5], "ko", ms=6)
+    ax.text(5.0, 5.0, "vertex", fontsize=12, ha="center", va="center")
+    fig.canvas.draw()
+    check("marker-only plot is not an obstacle",
+          not any(c["kind"] == layout.SEV_LINE for c in layout.audit(ax)),
+          str(layout.audit(ax)))
+    plt.close(fig)
+
+    # `finish` saves and reports in one go.
+    out = os.path.join(tmpdir, "layout_finish.png")
+    fig, ax = fresh()
+    ax.text(4.9, 5.0, "left", fontsize=12, ha="center", va="center")
+    ax.text(5.1, 5.0, "right", fontsize=12, ha="center", va="center")
+    report = layout.finish(fig, ax, out)
+    check("finish writes a PNG",
+          os.path.isfile(out) and os.path.getsize(out) > 1000,
+          str(os.path.getsize(out) if os.path.isfile(out) else 0))
+    check("finish reports the shape",
+          set(report) == {"collisions", "fixed", "remaining"}, str(report))
+    check("finish left no collisions", report["collisions"] == 0, str(report))
+
+
+def test_figure_layout_reports(tmpdir):
+    print("\nfigures: every drawing reports its layout")
+    from examfig import registry
+
+    for kind in registry.names():
+        out = os.path.join(tmpdir, "lay_" + kind + ".png")
+        try:
+            result = registry.draw(kind, {}, out)
+        except Exception as exc:                  # noqa: BLE001 - reported
+            check("%s draws for layout" % kind, False, "%s: %s" % (type(exc).__name__, exc))
+            continue
+        report = result.get("layout")
+        check("%s reports layout" % kind, isinstance(report, dict), str(report))
+        if not isinstance(report, dict):
+            continue
+        check("%s has no unresolved collision" % kind,
+              report.get("collisions") == 0, str(report))
+
+
 def main():
     print("examfig engine tests")
     # Not tempfile.mkdtemp(): the DSH file sandbox allows creating that
@@ -253,6 +378,8 @@ def main():
         test_figures(tmpdir)
         test_figcheck()
         test_chem()
+        test_layout(tmpdir)
+        test_figure_layout_reports(tmpdir)
         test_omml()
     finally:
         import shutil

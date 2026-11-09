@@ -19,7 +19,7 @@ so no ray casting is needed.
 """
 import numpy as np
 
-from .. import env
+from .. import env, layout
 
 
 def camera(azimuth_deg, elev_deg):
@@ -123,8 +123,7 @@ def cube(out_path="math_cube.png", a=1.0, show_diagonal=True):
 
     ax.autoscale_view()
     ax.margins(0.16)
-    fig.savefig(out_path, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
+    report = layout.finish(fig, ax, out_path)
 
     # Vertices are tuples; subtract only after converting, or Python raises
     # "unsupported operand type(s) for -: 'tuple' and 'tuple'".
@@ -132,7 +131,7 @@ def cube(out_path="math_cube.png", a=1.0, show_diagonal=True):
     marks = {"A", "B", "C", "D", "A_1", "B_1", "C_1", "D_1"}
     if show_diagonal:
         marks.add("AC_1")
-    return {"diagonal": diag, "marks": marks}
+    return {"diagonal": diag, "marks": marks, "layout": report}
 
 
 def pyramid(out_path="math_pyramid.png", a=1.0, h=1.05):
@@ -159,6 +158,6 @@ def pyramid(out_path="math_pyramid.png", a=1.0, h=1.05):
             ha="center", va="center")
     ax.autoscale_view()
     ax.margins(0.18)
-    fig.savefig(out_path, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
-    return {"height": float(h), "marks": {"A", "B", "C", "D", "P", "O"}}
+    report = layout.finish(fig, ax, out_path)
+    return {"height": float(h), "marks": {"A", "B", "C", "D", "P", "O"},
+            "layout": report}

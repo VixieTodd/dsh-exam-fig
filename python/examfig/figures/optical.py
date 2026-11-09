@@ -13,7 +13,7 @@ numbers printed in the question match the geometry on the page.
 """
 import numpy as np
 
-from .. import env
+from .. import env, layout
 
 
 def thin_lens(f=10.0, u=30.0, out_path="phys_lens.png",
@@ -84,12 +84,12 @@ def thin_lens(f=10.0, u=30.0, out_path="phys_lens.png",
     ax.set_xlim(-u - 6, max(v, f) + 8)
     ax.set_ylim(-half - 2, half + 2)
     ax.axis("off")
-    fig.savefig(out_path, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
+    report = layout.finish(fig, ax, out_path)
 
     marks = {"F", "F'", "AB", "%g" % f, "%g" % u}
     return {"v": float(v), "magnification": float(mag),
-            "focal": float(f), "object_distance": float(u), "marks": marks}
+            "focal": float(f), "object_distance": float(u), "marks": marks,
+            "layout": report}
 
 
 def mirror(f=10.0, u=30.0, out_path="phys_mirror.png", height=6.0, half=16.0):
@@ -169,8 +169,7 @@ def mirror(f=10.0, u=30.0, out_path="phys_mirror.png", height=6.0, half=16.0):
     ax.set_xlim(-u - 6, 4)
     ax.set_ylim(-half - 2, half + 2)
     ax.axis("off")
-    fig.savefig(out_path, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
+    report = layout.finish(fig, ax, out_path)
 
     return {"v": float(v), "magnification": float(mag),
-            "marks": {"F", "%g" % f, "%g" % u}}
+            "marks": {"F", "%g" % f, "%g" % u}, "layout": report}

@@ -186,7 +186,41 @@ ok, lines = figcheck.check(
     {1: {"marks": result["marks"]}})
 ```
 
-Then render the document and look at it:
+### The layout report
+
+Every drawing function now ends with `layout.finish(...)` instead of a bare
+`savefig`, and returns its verdict:
+
+```python
+result["layout"]
+# {"collisions": 0, "fixed": 2, "remaining": []}
+```
+
+Read it. `collisions: 0` means the published image has no two labels on top of
+each other, none sitting on a stroke, and none outside the canvas. A non-zero
+count comes with the offending labels named:
+
+```json
+{"collisions": 1, "fixed": 0,
+ "remaining": [{"kind": "overlap", "label": "G", "with": "G_{\\perp}"}]}
+```
+
+When that happens, do **not** publish the figure. Two options, in this order:
+
+1. **Change the geometry.** Three arrows from one origin 30° apart have no
+   room for three labels; drawing the arrows shorter and the ramp flatter gives
+   them room. This is what fixed the incline figure.
+2. **Give the label an explicit spot** and accept it — then say so in the
+   caption, or pick a different question.
+
+If a label *belongs* against a line (an angle mark inside its wedge, `O`
+between the axes), pass `skip=` so the audit does not chase it away:
+
+```python
+layout.finish(fig, ax, out, skip=("$O$", "$x$", "$y$"))
+```
+
+### Render and look
 
 ```bash
 node /path/to/libreoffice-kit/lib/cli.js render --input paper.docx --output-dir preview/

@@ -33,7 +33,7 @@ convention gets the convention.
 """
 import numpy as np
 
-from .. import env
+from .. import env, layout
 from ..labelplace import _overlap, _rect_seg_dist
 COL_G = "#c62828"
 COL_PAR = "#1565c0"
@@ -170,14 +170,19 @@ def incline(theta_deg=30, out_path="phys_incline.png", G=1.55, L=7.2):
                                        edgecolor=COL_BLOCK, lw=1.0, zorder=7))
     blk = C0 + 0.5 * bh * n_out
 
-    # Angle arc; the label goes inside it, near the vertex.
+    # Angle arc; the label goes inside it, near the vertex.  The label belongs
+    # in the wedge between the two rays by textbook convention, so it is
+    # exempted from the line-collision audit below -- nudging it clear of the
+    # rays pushes it outside the figure, which is what happened on the first
+    # attempt with the layout audit switched on.
+    angle_label = r"$%d^{\circ}$" % theta_deg
     r = 0.88
     a1, a2 = np.pi - th, np.pi
     arc = np.linspace(a1, a2, 90)
     ax.plot(A[0] + r * np.cos(arc), A[1] + r * np.sin(arc), "k-", lw=1.0, zorder=3)
     a_mid = (a1 + a2) / 2.0
     ax.text(A[0] + 0.56 * r * np.cos(a_mid), A[1] + 0.56 * r * np.sin(a_mid),
-            r"$%d^{\circ}$" % theta_deg, fontsize=11.5,
+            angle_label, fontsize=11.5,
             ha="center", va="center", zorder=8)
 
     Gl, Gn = G * np.sin(th), G * np.cos(th)
@@ -215,10 +220,14 @@ def incline(theta_deg=30, out_path="phys_incline.png", G=1.55, L=7.2):
     _grow_to_fit(fig, ax, artists)
     ax.set_aspect("equal")
     ax.axis("off")
-    fig.savefig(out_path, bbox_inches="tight", pad_inches=0.06, facecolor="white")
-    plt.close(fig)
+    # `_place_arrow_labels` already did the hard part, but it works one arrow
+    # at a time and cannot see what the angle arc and the block outline ended
+    # up touching.  Audit anyway: a clean report is the only evidence that the
+    # three arrows really are distinguishable.
+    report = layout.finish(fig, ax, out_path, pad_inches=0.06, skip=(angle_label,))
 
     marks = {"G", r"G_{\parallel}", r"G_{\perp}", "%d^\\circ" % theta_deg}
     return {"G_par": float(Gl), "G_perp": float(Gn),
             "ratio": float(Gl / Gn), "tan": float(np.tan(th)),
-            "labels": sorted(marks), "marks": sorted(marks)}
+            "labels": sorted(marks), "marks": sorted(marks),
+            "layout": report}

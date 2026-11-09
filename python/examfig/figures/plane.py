@@ -6,7 +6,7 @@ so the picture cannot disagree with the numbers in the prose.
 """
 import numpy as np
 
-from .. import env
+from .. import env, layout
 
 
 def quadratic(a, b, c, out_path="math_quadratic.png"):
@@ -77,11 +77,14 @@ def quadratic(a, b, c, out_path="math_quadratic.png"):
     ax.set_xlim(x_lo, x_hi)
     ax.set_ylim(y_lo, y_hi)
     ax.axis("off")
-    fig.savefig(out_path, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
+    # O sits in the angle between the two axes, and x/y sit at the ends of the
+    # axes they name.  All three are meant to touch them, so the line audit
+    # would only ever report false positives.
+    report = layout.finish(fig, ax, out_path, skip=("$O$", "$x$", "$y$"))
 
     marks = {"O", "x", "y", "%g" % vx, "%g" % vy} | {"%g" % r for r in roots}
-    return {"vertex": (vx, vy), "roots": roots, "marks": marks}
+    return {"vertex": (vx, vy), "roots": roots, "marks": marks,
+            "layout": report}
 
 
 def triangle(ac, bc, out_path="math_triangle.png"):
@@ -126,8 +129,8 @@ def triangle(ac, bc, out_path="math_triangle.png"):
     ax.set_xlim(-0.55, ac + 0.45)
     ax.set_ylim(-0.55, bc + 0.45)
     ax.axis("off")
-    fig.savefig(out_path, bbox_inches="tight", facecolor="white")
-    plt.close(fig)
+    report = layout.finish(fig, ax, out_path)
 
     return {"hypotenuse": ab, "right_angle_at": "C",
-            "marks": {"A", "B", "C", "%g" % ac, "%g" % bc, "%g" % ab, "90"}}
+            "marks": {"A", "B", "C", "%g" % ac, "%g" % bc, "%g" % ab, "90"},
+            "layout": report}

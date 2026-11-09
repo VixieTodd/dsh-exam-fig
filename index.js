@@ -192,6 +192,7 @@ function registerDrawTool(ctx) {
           bytes: { type: 'number' },
           marks: { type: 'array', items: { type: 'string' } },
           detail: { type: 'object', additionalProperties: true },
+          layout: { type: 'object', additionalProperties: true },
           error: { type: 'string' },
         },
         required: ['ok'],
@@ -199,9 +200,26 @@ function registerDrawTool(ctx) {
       },
       render(_args, value) {
         if (!value.ok) return textBlock(`figure failed: ${value.error}`);
-        return textBlock(
-          `drew ${value.kind} -> ${value.path} (${value.bytes} bytes)\n` +
-          `marks: ${(value.marks || []).join(', ')}`);
+        const lines = [
+          `drew ${value.kind} -> ${value.path} (${value.bytes} bytes)`,
+          `marks: ${(value.marks || []).join(', ')}`,
+        ];
+        const lay = value.layout;
+        if (lay) {
+          if (lay.applicable === false) {
+            lines.push('layout: not applicable (labels drawn by the renderer)');
+          } else if (lay.collisions === 0) {
+            lines.push(`layout: clean${lay.fixed ? ` (${lay.fixed} label(s) nudged apart)` : ''}`);
+          } else {
+            // Say it plainly.  A caller who does not know the figure is
+            // compromised will ship it.
+            lines.push(`layout: ${lay.collisions} UNRESOLVED COLLISION(S)`);
+            for (const item of lay.remaining || []) {
+              lines.push(`  - ${item.kind}: "${item.label}"${item.with ? ` vs "${item.with}"` : ''}`);
+            }
+          }
+        }
+        return textBlock(lines.join('\n'));
       },
     },
     async execute(args, exec) {
@@ -216,16 +234,16 @@ function registerDrawTool(ctx) {
         return { ok: false, kind: String(args.kind), error: payload.error || 'unknown error' };
       }
       // `detail` takes the rest of the reply, but only fields the schema does
-      // not name: `ok`/`kind`/`path`/`bytes`/`marks` are promoted, everything
-      // else is diagnostic noise the caller may find useful.
-      const { marks, path, bytes, ok: _ok, kind: _kind, error: _err, ...rest } = payload;
+      // not name: `ok`/`kind`/`path`/`bytes`/`marks`/`layout` are promoted,
+      // everything else is diagnostic noise the caller may find useful.
+      const { marks, path, bytes, layout, ok: _ok, kind: _kind, error: _err, ...rest } = payload;
       // Drop undefined values: the host validates the result as lossless JSON
       // and an `undefined` property fails the whole call.
       const detail = {};
       for (const [key, value] of Object.entries(rest)) {
         if (value !== undefined && value !== null) detail[key] = value;
       }
-      return {
+      const result = {
         ok: true,
         kind: String(args.kind),
         path: String(path || out),
@@ -233,6 +251,10 @@ function registerDrawTool(ctx) {
         marks: Array.isArray(marks) ? marks.map(String) : [],
         detail,
       };
+      // Promoted so `render` can warn about it without digging into `detail`:
+      // an unresolved collision is the one thing a caller must not miss.
+      if (layout && typeof layout === 'object') result.layout = layout;
+      return result;
     },
     isConcurrencySafe(args) {
       // No shared state between calls: each spawns its own interpreter and
