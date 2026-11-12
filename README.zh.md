@@ -132,6 +132,7 @@ dsh-exam-fig/
 │   ├── figcheck.py       声明标注 vs 实际标注
 │   ├── figures/
 │   │   ├── plane.py      quadratic, triangle
+│   │   ├── power.py      y = x^a 五个幂同图
 │   │   ├── solid.py      cube, pyramid（正交投影 + 背面剔除）
 │   │   ├── incline.py    斜面与力的分解
 │   │   ├── circuit.py    串联电路（schemdraw）
@@ -216,7 +217,7 @@ report = layout.finish(fig, ax, out_path, skip=("$O$", "$x$", "$y$"))
 
 它不替代对图本身的思考。三根箭头同起点、只差 30°，任何自动 pass 都排不开——标签总得有地方去，而"什么地方"由几何决定。那里的解法是改**画法**：箭头画短、斜面画矮宽，让标签有地方去。见 `figures/incline.py`。
 
-它也不碰 `molecule`：RDKit 自己排结构与其原子标签，没有 matplotlib axes 可量。这一类返回 `{"applicable": false}`，让遍历九种的调用方不必特判。
+它也不碰 `molecule`：RDKit 自己排结构与其原子标签，没有 matplotlib axes 可量。这一类返回 `{"applicable": false}`，让遍历十种的调用方不必特判。
 
 
 ---
@@ -227,7 +228,7 @@ report = layout.finish(fig, ax, out_path, skip=("$O$", "$x$", "$y$"))
 
 | 参数 | 类型 | 含义 |
 | --- | --- | --- |
-| `kind` | string | 九种之一 |
+| `kind` | string | 十种之一 |
 | `params` | object | 该 kind 的参数；未知键会被拒绝 |
 | `out` | string | 输出 PNG，默认 `<cwd>/examfig/<kind>.png` |
 
@@ -235,11 +236,12 @@ report = layout.finish(fig, ax, out_path, skip=("$O$", "$x$", "$y$"))
 
 ### `exam_figure_catalog`
 
-九种 kind 及每个参数的类型与默认值。**先调它，别猜参数名**——`coerce()` 会拒绝未知键并列出可接受的。
+十种 kind 及每个参数的类型与默认值。**先调它，别猜参数名**——`coerce()` 会拒绝未知键并列出可接受的。
 
 | kind | 参数 |
 | --- | --- |
 | `quadratic` | `a`, `b`, `c` |
+| `power` | `exponents`（列表，默认 `[1, 2, 3, -1, 1/2]`）|
 | `triangle` | `ac`, `bc`（直角在 C） |
 | `cube` | `a`, `show_diagonal` |
 | `pyramid` | `a`, `h` |

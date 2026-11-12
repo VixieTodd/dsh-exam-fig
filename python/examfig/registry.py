@@ -22,6 +22,13 @@ REGISTRY = {
             "c": ("number", -3.0, "constant term c"),
         },
     ),
+    "power": (
+        "power", "power",
+        {
+            "exponents": ("array", [1.0, 2.0, 3.0, -1.0, 0.5],
+                          "exponents a for y = x^a, drawn on one pair of axes"),
+        },
+    ),
     "triangle": (
         "plane", "triangle",
         {

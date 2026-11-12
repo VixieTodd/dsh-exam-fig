@@ -35,6 +35,12 @@ def quadratic(a, b, c, out_path="math_quadratic.png"):
 
     y_lo = vy - 1.3
     y_hi = max(0.0, vy) + 2.3
+    # The x-axis and the roots both live at y = 0.  With the vertex at y = 4
+    # (opening downward) `vy - 1.3` is already above zero, so the frame would
+    # contain no axis at all and both root labels would land outside the
+    # canvas -- a real failure the layout audit caught on (a=-1, b=2, c=3).
+    y_lo = min(y_lo, -0.9)
+    y_hi = max(y_hi, 0.9)
     x_lo, x_hi = vx - 2.9, vx + 2.9
     if roots:                          # never let a root fall outside the frame
         x_lo = min(x_lo, min(roots) - 0.55)

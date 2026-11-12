@@ -163,7 +163,8 @@ function registerDrawTool(ctx) {
     name: 'exam_figure',
     description: [
       'Draw one exam figure (math / physics / chemistry) from parameters.',
-      'Kinds: quadratic, triangle, cube, pyramid, incline, circuit, lens, mirror, molecule.',
+      'Kinds: quadratic, power, triangle, cube, pyramid, incline, circuit, lens,',
+      'mirror, molecule.',
       'Every parameter the question states must be passed in, so the picture and the',
       'numbers in the prose come from the same source. The result reports `marks`:',
       'the labels actually painted, for use with `exam_figure_check`.',

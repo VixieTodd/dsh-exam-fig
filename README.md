@@ -153,6 +153,7 @@ dsh-exam-fig/
 │   ├── figcheck.py       declared labels vs painted marks
 │   ├── figures/
 │   │   ├── plane.py      quadratic, triangle
+│   │   ├── power.py      y = x^a family on one pair of axes
 │   │   ├── solid.py      cube, pyramid (orthographic + back-face culling)
 │   │   ├── incline.py    inclined plane with resolved components
 │   │   ├── circuit.py    series circuit (schemdraw)
@@ -283,7 +284,7 @@ See `figures/incline.py`.
 
 It also does not touch `molecule`: RDKit lays out structures and their atom
 labels itself, with no matplotlib axes to measure. That kind reports
-`{"applicable": false}` so a caller iterating over all nine does not have to
+`{"applicable": false}` so a caller iterating over all ten does not have to
 special-case it.
 
 ---
@@ -294,7 +295,7 @@ special-case it.
 
 | Parameter | Type | Meaning |
 | --- | --- | --- |
-| `kind` | string | one of the nine kinds |
+| `kind` | string | one of the ten kinds |
 | `params` | object | that kind's parameters; unknown keys are refused |
 | `out` | string | output PNG; defaults to `<cwd>/examfig/<kind>.png` |
 
@@ -303,13 +304,14 @@ drawing function registered as it painted — never reconstructed from the image
 
 ### `exam_figure_catalog`
 
-Nine kinds with each parameter's type and default. Call this instead of
+Ten kinds with each parameter's type and default. Call this instead of
 guessing a parameter name; `coerce()` rejects unknown keys and lists the
 accepted ones.
 
 | kind | parameters |
 | --- | --- |
 | `quadratic` | `a`, `b`, `c` |
+| `power` | `exponents` (list, default `[1, 2, 3, -1, 1/2]`) |
 | `triangle` | `ac`, `bc` (right angle at C) |
 | `cube` | `a`, `show_diagonal` |
 | `pyramid` | `a`, `h` |
