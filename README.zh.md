@@ -131,12 +131,29 @@ dsh-exam-fig/
 │   ├── registry.py       kind -> (module, function, params)  [惰性]
 │   ├── figcheck.py       声明标注 vs 实际标注
 │   ├── figures/
+│   │   ├── _helpers.py   共享原语：坐标轴框、点、箭头、测距括号
 │   │   ├── plane.py      quadratic, triangle
 │   │   ├── power.py      y = x^a 五个幂同图
 │   │   ├── solid.py      cube, pyramid（正交投影 + 背面剔除）
 │   │   ├── incline.py    斜面与力的分解
+│   │   ├── numberline.py 数轴：区间、射线、标点
+│   │   ├── venn.py       二/三集合韦恩图，按区域着色
+│   │   ├── algebra.py    explog（a^x 与 log_a x）、piecewise / |ax+b|+c
+│   │   ├── trig.py       y = A sin(ωx + φ) + k
+│   │   ├── unitcircle.py 单位圆与正弦线、余弦线、正切线
+│   │   ├── geometry.py   solve_triangle, circleline, vectors
+│   │   ├── conic.py      椭圆、双曲线、抛物线（焦点、准线）
+│   │   ├── stats.py      直方图+频率多边形、散点图+回归线
+│   │   ├── kinematics.py motion（同一组方程出 x-t 与 v-t）
+│   │   ├── mechanics.py  forces, projectile, circular
+│   │   ├── waves.py      wave, vibration, standingwave
+│   │   ├── optics2.py    refraction（含临界角）、doubleslit、energylevel
+│   │   ├── thermo.py     由过程列表生成 p-V 图
+│   │   ├── em.py         fieldlines, magnetic, induction
 │   │   ├── circuit.py    串联电路（schemdraw）
+│   │   ├── circuit2.py   并联支路、电表、滑动变阻器（schemdraw）
 │   │   ├── optical.py    凸透镜、凹面镜
+│   │   ├── chemistry.py  滴定曲线、速率-时间与平衡移动
 │   │   └── molecule.py   键线式（RDKit）
 │   ├── docxkit.py        python-docx 辅助：字体、图宽、混合 run
 │   ├── omml.py           LaTeX -> Word 原生公式
@@ -217,7 +234,7 @@ report = layout.finish(fig, ax, out_path, skip=("$O$", "$x$", "$y$"))
 
 它不替代对图本身的思考。三根箭头同起点、只差 30°，任何自动 pass 都排不开——标签总得有地方去，而"什么地方"由几何决定。那里的解法是改**画法**：箭头画短、斜面画矮宽，让标签有地方去。见 `figures/incline.py`。
 
-它也不碰 `molecule`：RDKit 自己排结构与其原子标签，没有 matplotlib axes 可量。这一类返回 `{"applicable": false}`，让遍历十种的调用方不必特判。
+它也不碰 `molecule`、`circuit`、`circuit2`：RDKit 与 schemdraw 自己排元素和自己的标签，没有 matplotlib 文字对象可量。这三类返回 `{"applicable": false}`，让遍历三十九种的调用方不必特判。
 
 
 ---
@@ -228,7 +245,7 @@ report = layout.finish(fig, ax, out_path, skip=("$O$", "$x$", "$y$"))
 
 | 参数 | 类型 | 含义 |
 | --- | --- | --- |
-| `kind` | string | 十种之一 |
+| `kind` | string | 三十九种之一 |
 | `params` | object | 该 kind 的参数；未知键会被拒绝 |
 | `out` | string | 输出 PNG，默认 `<cwd>/examfig/<kind>.png` |
 
@@ -236,20 +253,88 @@ report = layout.finish(fig, ax, out_path, skip=("$O$", "$x$", "$y$"))
 
 ### `exam_figure_catalog`
 
-十种 kind 及每个参数的类型与默认值。**先调它，别猜参数名**——`coerce()` 会拒绝未知键并列出可接受的。
+三十九种 kind 及每个参数的类型与默认值。**先调它，别猜参数名**——`coerce()` 会拒绝未知键并列出可接受的。
+
+**平面几何与立体**
 
 | kind | 参数 |
 | --- | --- |
-| `quadratic` | `a`, `b`, `c` |
-| `power` | `exponents`（列表，默认 `[1, 2, 3, -1, 1/2]`）|
-| `triangle` | `ac`, `bc`（直角在 C） |
-| `cube` | `a`, `show_diagonal` |
-| `pyramid` | `a`, `h` |
-| `incline` | `theta_deg`, `G`, `L` |
-| `circuit` | `emf`, `r1`, `r2` |
-| `lens` | `f`, `u`, `height` |
-| `mirror` | `f`, `u`, `height` |
-| `molecule` | `smiles_list` |
+| `quadratic` | `a`（默认 `1.0`）、`b`（默认 `-2.0`）、`c`（默认 `-3.0`）|
+| `power` | `exponents`（默认 `[1.0, 2.0, 3.0, -1.0, 0.5]`）|
+| `triangle` | `ac`（默认 `3.0`）、`bc`（默认 `4.0`），直角在 C |
+| `cube` | `a`（默认 `1.0`）、`show_diagonal`（默认 `true`）|
+| `pyramid` | `a`（默认 `1.0`）、`h`（默认 `1.05`）|
+
+**集合、区间与函数**
+
+| kind | 参数 |
+| --- | --- |
+| `numberline` | `lo`（默认 `-4.0`）、`hi`（默认 `6.0`）、`intervals`（默认 `[[-1.0, 2.0, 'closed']]`）、`points` |
+| `venn` | `sets`（默认 `['A', 'B']`）、`regions`（默认 `{}`）、`shade` |
+| `explog` | `base`（默认 `2.0`）、`show_log`（默认 `true`）、`show_reciprocal`（默认 `true`）、`span`（默认 `3.4`）|
+| `piecewise` | `mode`（默认 `absolute`）、`abs_a`（默认 `1.0`）、`abs_b`（默认 `0.0`）、`abs_c`（默认 `0.0`）、`knots`（默认 `[[-3.0, -1.0], [-1.0, 1.0], [1.0, -2.0]]`）|
+| `trig` | `A`（默认 `1.0`）、`omega`（默认 `1.0`）、`phi`（默认 `0.0`）、`shift`（默认 `0.0`）、`periods`（默认 `1.0`）|
+
+**三角与平面几何**
+
+| kind | 参数 |
+| --- | --- |
+| `unitcircle` | `theta_deg`（默认 `50.0`）、`show_tan`（默认 `true`）、`show_angles`（默认 `true`）|
+| `solve_triangle` | `a`（默认 `5.0`）、`b`（默认 `6.0`）、`c`（默认 `7.0`）、`show_circle`（默认 `true`）、`show_angles`（默认 `true`）|
+| `circleline` | `r`（默认 `3.0`）、`dist`（默认 `1.8`）、`angle_deg`（默认 `0.0`）、`tangent`（默认 `false`）|
+| `vectors` | `u`（默认 `[3.0, 1.0]`）、`v`（默认 `[1.0, 2.5]`）、`mode`（默认 `both`）|
+
+**圆锥曲线与统计**
+
+| kind | 参数 |
+| --- | --- |
+| `conic` | `kind`（默认 `ellipse`）、`a`（默认 `3.0`）、`b`（默认 `2.0`）、`p`（默认 `2.0`）、`show_directrix`（默认 `true`）、`show_asymptotes`（默认 `true`）|
+| `histogram` | `samples`、`bins`（默认 `6`）、`show_polygon`（默认 `true`）、`show_normal`（默认 `true`）、`xlabel`（默认 `数据`）、`ylabel`（默认 `频率/组距`）|
+| `scatter` | `points`、`slope`（默认 `0.0`）、`intercept`（默认 `0.0`）、`show_fit`（默认 `true`）、`xlabel`（默认 `$x$`）、`ylabel`（默认 `$y$`）|
+
+**力学**
+
+| kind | 参数 |
+| --- | --- |
+| `incline` | `theta_deg`（默认 `30.0`）、`G`（默认 `1.55`）、`L`（默认 `7.2`）|
+| `forces` | `magnitudes`、`angles`、`weight`（默认 `0.0`）、`incline_deg`（默认 `0.0`）、`show_decomposition`（默认 `true`）|
+| `projectile` | `speed`（默认 `10.0`）、`angle_deg`（默认 `45.0`）、`launch_height`（默认 `0.0`）、`gravity`（默认 `9.8`）、`show_components`（默认 `true`）、`show_range`（默认 `true`）|
+| `circular` | `radius`（默认 `2.0`）、`speed`（默认 `4.0`）、`mass`（默认 `0.5`）、`angle_deg`（默认 `35.0`）、`show_critical`（默认 `true`）、`show_forces`（默认 `true`）|
+| `motion` | `x0`（默认 `0.0`）、`v0`（默认 `6.0`）、`a`（默认 `-2.0`）、`t_end`（默认 `0.0`）、`show_area`（默认 `true`）|
+
+**波与光学**
+
+| kind | 参数 |
+| --- | --- |
+| `wave` | `amplitude`（默认 `2.0`）、`wavelength`（默认 `4.0`）、`cycles`（默认 `2.0`）、`speed`（默认 `0.0`）|
+| `vibration` | `amplitude`（默认 `2.0`）、`period`（默认 `0.8`）、`cycles`（默认 `2.5`）|
+| `standingwave` | `amplitude`（默认 `2.0`）、`length`（默认 `6.0`）、`antinodes`（默认 `3`）、`show_envelope`（默认 `true`）|
+| `refraction` | `n1`（默认 `1.0`）、`n2`（默认 `1.5`）、`incidence_deg`（默认 `45.0`）、`show_critical`（默认 `true`）|
+| `doubleslit` | `wavelength`（默认 `600.0`）、`slit_separation`（默认 `0.2`）、`distance`（默认 `1.0`）、`window_mm`（默认 `20.0`）、`n_fringes`（默认 `9`）|
+| `lens` | `f`（默认 `10.0`）、`u`（默认 `30.0`）、`height`（默认 `6.0`）|
+| `mirror` | `f`（默认 `10.0`）、`u`（默认 `30.0`）、`height`（默认 `6.0`）|
+
+**热学、近代物理与电磁学**
+
+| kind | 参数 |
+| --- | --- |
+| `pv` | `states`（默认 `[3.0, 1.0]`）、`processes`（默认 `[['isobar', 3.0], ['isochore', 1.0], ['isobar', 1.0], ['isochore', 3.0]]`）、`show_area`（默认 `true`）|
+| `energylevel` | `z`（默认 `1.0`）、`n_max`（默认 `4`）、`transitions`（默认 `[[3, 1], [2, 1]]`）|
+| `fieldlines` | `charges`、`n_lines`（默认 `12`）、`n_equi`（默认 `6`）、`extent`（默认 `3.2`）、`show_labels`（默认 `true`）|
+| `magnetic` | `charge`（默认 `1.0`）、`speed`（默认 `1.0`）、`mass`（默认 `1.0`）、`field`（默认 `1.0`）、`sign`（默认 `1`）、`field_mode`（默认 `in`）、`angle_deg`（默认 `90.0`）|
+| `induction` | `rod_length`（默认 `1.0`）、`speed`（默认 `2.0`）、`field`（默认 `0.5`）、`resistance`（默认 `2.0`）、`rail_length`（默认 `3.0`）、`field_mode`（默认 `in`）|
+| `circuit` | `emf`（默认 `6.0`）、`r1`（默认 `2.0`）、`r2`（默认 `4.0`）|
+| `circuit2` | `emf`（默认 `6.0`）、`r1`（默认 `2.0`）、`r2`（默认 `3.0`）、`rheostat`（默认 `4.0`）、`show_ammeter`（默认 `true`）、`show_voltmeter`（默认 `true`）|
+
+**化学**
+
+| kind | 参数 |
+| --- | --- |
+| `titration` | `analyte_conc`（默认 `0.1`）、`analyte_volume`（默认 `20.0`）、`titrant_conc`（默认 `0.1`）、`ka`（默认 `1.8e-05`）、`mode`（默认 `acid`）、`show_half`（默认 `true`）|
+| `equilibrium` | `v_f0`（默认 `1.0`）、`v_r0`（默认 `0.2`）、`v_eq`（默认 `0.0`）、`t_change`（默认 `3.0`）、`jump_f`（默认 `0.6`）、`jump_r`（默认 `0.0`）、`tau`（默认 `0.55`）、`t_end`（默认 `8.0`）、`show_shift`（默认 `true`）|
+| `molecule` | `smiles_list`（默认 `['CCO']`）|
+
+列表参数（`intervals`、`points`、`knots`、`magnitudes`、`angles`、`charges`、`samples`、`transitions`、`processes`）接受 JSON 数组，默认值就是上面那组样例，所以空参数直接调也能画出一张像样的图。
 
 ### `exam_figure_check`
 

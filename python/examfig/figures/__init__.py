@@ -17,7 +17,19 @@ exactly the environment this package is built for.
 """
 import importlib
 
-_SUBMODULES = ("incline", "circuit", "solid", "plane", "molecule", "optical")
+_SUBMODULES = ("_helpers",
+               "incline", "circuit", "solid", "plane", "molecule", "optical",
+               "power", "trig",
+               # math, batch 1
+               "numberline", "venn", "algebra", "unitcircle", "geometry",
+               # physics, batch 1
+               "kinematics", "waves", "optics2", "thermo",
+               # maths, batch 2
+               "conic", "stats",
+               # physics, batch 2
+               "mechanics", "em", "circuit2",
+               # chemistry
+               "chemistry")
 
 __all__ = list(_SUBMODULES)
 

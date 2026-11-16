@@ -36,12 +36,15 @@ def molecule(smiles_list, out_path="chem_structure.png", sub_size=(340, 270),
         mols.append(m)
         formulas.append(rdMolDescriptors.CalcMolFormula(m))
 
+    # The formula is printed under each structure, because it is the label a
+    # question actually asserts.  ``legends=None`` used to leave it unpainted
+    # while still reporting it as a mark -- a label the figure did not show.
     img = Draw.MolsToGridImage(
         mols,
         molsPerRow=min(len(mols), 2),
         subImgSize=tuple(sub_size),
         useSVG=False,
-        legends=None,
+        legends=formulas,
     )
     parent = os.path.dirname(os.path.abspath(out_path))
     if parent:

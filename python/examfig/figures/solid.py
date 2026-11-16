@@ -63,7 +63,12 @@ def hidden_edge_flags(verts, faces, d):
 
 def draw_polyhedron(ax, verts, faces, labels, d, right, upv,
                     hidden_dashes=(3.5, 2.5), lw=1.4, label_off=0.10):
-    """Visible edges solid, hidden edges dashed, vertex labels pushed outward."""
+    """Visible edges solid, hidden edges dashed, vertex labels pushed outward.
+
+    Returns ``(projected_points, painted_names)``: the caller gets the names
+    that were actually written on the figure, so ``marks`` comes from the
+    drawing code rather than from a list of the labels the caller *expected*.
+    """
     verts = np.asarray(verts, dtype=float)
     P = project(verts, d, right, upv)
     flags = hidden_edge_flags(verts, faces, d)
@@ -75,6 +80,7 @@ def draw_polyhedron(ax, verts, faces, labels, d, right, upv,
                  else dict(color="k", lw=lw, solid_capstyle="round"))
         ax.plot([P[i, 0], P[j, 0]], [P[i, 1], P[j, 1]], **style)
 
+    painted = []
     center = P.mean(axis=0)
     for idx, name in labels.items():
         v = P[idx] - center
@@ -84,7 +90,8 @@ def draw_polyhedron(ax, verts, faces, labels, d, right, upv,
         v = v / n
         ax.text(P[idx, 0] + v[0] * label_off, P[idx, 1] + v[1] * label_off,
                 name, fontsize=11, ha="center", va="center")
-    return P
+        painted.append(name.strip("$"))
+    return P, painted
 
 
 def cube_geometry(a=1.0):
@@ -115,12 +122,15 @@ def cube(out_path="math_cube.png", a=1.0, show_diagonal=True):
     ax.axis("off")
 
     d, right, upv = camera(azimuth_deg=-55, elev_deg=22)
-    P = draw_polyhedron(ax, v, faces, labels, d, right, upv)
+    P, painted = draw_polyhedron(ax, v, faces, labels, d, right, upv)
 
     if show_diagonal:
         ax.plot([P[0, 0], P[6, 0]], [P[0, 1], P[6, 1]], color="#c62828",
                 lw=1.5, alpha=0.95)
-
+        # The diagonal is not labelled on the figure -- there is no room for a
+        # string between two vertices -- so it is not a mark.  ``figcheck``
+        # would then fail a stem that asks about AC1, which is the honest
+        # outcome: the picture shows the segment, not the name.
     ax.autoscale_view()
     ax.margins(0.16)
     report = layout.finish(fig, ax, out_path)
@@ -128,10 +138,7 @@ def cube(out_path="math_cube.png", a=1.0, show_diagonal=True):
     # Vertices are tuples; subtract only after converting, or Python raises
     # "unsupported operand type(s) for -: 'tuple' and 'tuple'".
     diag = float(np.linalg.norm(np.asarray(v[6]) - np.asarray(v[0])))
-    marks = {"A", "B", "C", "D", "A_1", "B_1", "C_1", "D_1"}
-    if show_diagonal:
-        marks.add("AC_1")
-    return {"diagonal": diag, "marks": marks, "layout": report}
+    return {"diagonal": diag, "marks": set(painted), "layout": report}
 
 
 def pyramid(out_path="math_pyramid.png", a=1.0, h=1.05):
@@ -149,15 +156,15 @@ def pyramid(out_path="math_pyramid.png", a=1.0, h=1.05):
     ax.set_aspect("equal")
     ax.axis("off")
     d, right, upv = camera(azimuth_deg=-60, elev_deg=20)
-    P = draw_polyhedron(ax, v, faces, labels, d, right, upv)
+    P, painted = draw_polyhedron(ax, v, faces, labels, d, right, upv)
 
     O = project([(0, 0, 0)], d, right, upv)[0]
     ax.plot([P[4, 0], O[0]], [P[4, 1], O[1]], color="k", lw=0.9,
             dashes=(3.5, 2.5))
     ax.text(O[0] + 0.06, O[1] - 0.10, "$O$", fontsize=10,
             ha="center", va="center")
+    painted.append("O")
     ax.autoscale_view()
     ax.margins(0.18)
     report = layout.finish(fig, ax, out_path)
-    return {"height": float(h), "marks": {"A", "B", "C", "D", "P", "O"},
-            "layout": report}
+    return {"height": float(h), "marks": set(painted), "layout": report}

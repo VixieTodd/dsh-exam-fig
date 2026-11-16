@@ -152,12 +152,29 @@ dsh-exam-fig/
 │   ├── registry.py       kind -> (module, function, params)  [lazy]
 │   ├── figcheck.py       declared labels vs painted marks
 │   ├── figures/
+│   │   ├── _helpers.py   shared primitives: axes frame, dots, arrows, brackets
 │   │   ├── plane.py      quadratic, triangle
 │   │   ├── power.py      y = x^a family on one pair of axes
 │   │   ├── solid.py      cube, pyramid (orthographic + back-face culling)
 │   │   ├── incline.py    inclined plane with resolved components
+│   │   ├── numberline.py intervals, rays, marked points
+│   │   ├── venn.py       two- and three-set diagrams, region shading
+│   │   ├── algebra.py    explog (a^x with log_a x), piecewise / |ax+b|+c
+│   │   ├── trig.py       y = A sin(ωx + φ) + k
+│   │   ├── unitcircle.py unit circle with the sine, cosine and tangent segments
+│   │   ├── geometry.py   solve_triangle, circleline, vectors
+│   │   ├── conic.py      ellipse, hyperbola, parabola with foci and directrix
+│   │   ├── stats.py      histogram with frequency polygon, scatter with fit
+│   │   ├── kinematics.py motion (x-t and v-t from one set of equations)
+│   │   ├── mechanics.py  forces, projectile, circular
+│   │   ├── waves.py      wave, vibration, standingwave
+│   │   ├── optics2.py    refraction (with critical angle), doubleslit, energylevel
+│   │   ├── thermo.py     p-V diagram from a process list
+│   │   ├── em.py         fieldlines, magnetic, induction
 │   │   ├── circuit.py    series circuit (schemdraw)
+│   │   ├── circuit2.py   parallel branches, meters, rheostat (schemdraw)
 │   │   ├── optical.py    thin lens, concave mirror
+│   │   ├── chemistry.py  titration curve, rate vs time with a shift
 │   │   └── molecule.py   skeletal structures (RDKit)
 │   ├── docxkit.py        python-docx helpers: fonts, figure sizing, mixed runs
 │   ├── omml.py           LaTeX -> native Word equation
@@ -282,10 +299,10 @@ somewhere, and "somewhere" is decided by the geometry. The fix there was to
 change the *drawing*: shorter arrows, a flatter ramp, so the labels have room.
 See `figures/incline.py`.
 
-It also does not touch `molecule`: RDKit lays out structures and their atom
-labels itself, with no matplotlib axes to measure. That kind reports
-`{"applicable": false}` so a caller iterating over all ten does not have to
-special-case it.
+It also does not touch `molecule`, `circuit` or `circuit2`: RDKit and schemdraw
+lay out their own elements and their own labels, with no matplotlib text objects
+to measure. Those kinds report `{"applicable": false}` so a caller iterating
+over all thirty-nine does not have to special-case them.
 
 ---
 
@@ -295,7 +312,7 @@ special-case it.
 
 | Parameter | Type | Meaning |
 | --- | --- | --- |
-| `kind` | string | one of the ten kinds |
+| `kind` | string | one of the thirty-nine kinds |
 | `params` | object | that kind's parameters; unknown keys are refused |
 | `out` | string | output PNG; defaults to `<cwd>/examfig/<kind>.png` |
 
@@ -304,22 +321,92 @@ drawing function registered as it painted — never reconstructed from the image
 
 ### `exam_figure_catalog`
 
-Ten kinds with each parameter's type and default. Call this instead of
+Thirty-nine kinds with each parameter's type and default. Call this instead of
 guessing a parameter name; `coerce()` rejects unknown keys and lists the
 accepted ones.
 
+**Geometry and solids**
+
 | kind | parameters |
 | --- | --- |
-| `quadratic` | `a`, `b`, `c` |
-| `power` | `exponents` (list, default `[1, 2, 3, -1, 1/2]`) |
-| `triangle` | `ac`, `bc` (right angle at C) |
-| `cube` | `a`, `show_diagonal` |
-| `pyramid` | `a`, `h` |
-| `incline` | `theta_deg`, `G`, `L` |
-| `circuit` | `emf`, `r1`, `r2` |
-| `lens` | `f`, `u`, `height` |
-| `mirror` | `f`, `u`, `height` |
-| `molecule` | `smiles_list` |
+| `quadratic` | `a` (default `1.0`), `b` (default `-2.0`), `c` (default `-3.0`) |
+| `power` | `exponents` (default `[1.0, 2.0, 3.0, -1.0, 0.5]`) |
+| `triangle` | `ac` (default `3.0`), `bc` (default `4.0`) |
+| `cube` | `a` (default `1.0`), `show_diagonal` (default `true`) |
+| `pyramid` | `a` (default `1.0`), `h` (default `1.05`) |
+
+**Sets, intervals and functions**
+
+| kind | parameters |
+| --- | --- |
+| `numberline` | `lo` (default `-4.0`), `hi` (default `6.0`), `intervals` (default `[[-1.0, 2.0, 'closed']]`), `points` |
+| `venn` | `sets` (default `['A', 'B']`), `regions` (default `{}`), `shade` |
+| `explog` | `base` (default `2.0`), `show_log` (default `true`), `show_reciprocal` (default `true`), `span` (default `3.4`) |
+| `piecewise` | `mode` (default `absolute`), `abs_a` (default `1.0`), `abs_b` (default `0.0`), `abs_c` (default `0.0`), `knots` (default `[[-3.0, -1.0], [-1.0, 1.0], [1.0, -2.0]]`) |
+| `trig` | `A` (default `1.0`), `omega` (default `1.0`), `phi` (default `0.0`), `shift` (default `0.0`), `periods` (default `1.0`) |
+
+**Trigonometry and plane geometry**
+
+| kind | parameters |
+| --- | --- |
+| `unitcircle` | `theta_deg` (default `50.0`), `show_tan` (default `true`), `show_angles` (default `true`) |
+| `solve_triangle` | `a` (default `5.0`), `b` (default `6.0`), `c` (default `7.0`), `show_circle` (default `true`), `show_angles` (default `true`) |
+| `circleline` | `r` (default `3.0`), `dist` (default `1.8`), `angle_deg` (default `0.0`), `tangent` (default `false`) |
+| `vectors` | `u` (default `[3.0, 1.0]`), `v` (default `[1.0, 2.5]`), `mode` (default `both`) |
+
+**Conics and statistics**
+
+| kind | parameters |
+| --- | --- |
+| `conic` | `kind` (default `ellipse`), `a` (default `3.0`), `b` (default `2.0`), `p` (default `2.0`), `show_directrix` (default `true`), `show_asymptotes` (default `true`) |
+| `histogram` | `samples`, `bins` (default `6`), `show_polygon` (default `true`), `show_normal` (default `true`), `xlabel` (default `数据`), `ylabel` (default `频率/组距`) |
+| `scatter` | `points`, `slope` (default `0.0`), `intercept` (default `0.0`), `show_fit` (default `true`), `xlabel` (default `$x$`), `ylabel` (default `$y$`) |
+
+**Mechanics**
+
+| kind | parameters |
+| --- | --- |
+| `incline` | `theta_deg` (default `30.0`), `G` (default `1.55`), `L` (default `7.2`) |
+| `forces` | `magnitudes`, `angles`, `weight` (default `0.0`), `incline_deg` (default `0.0`), `show_decomposition` (default `true`) |
+| `projectile` | `speed` (default `10.0`), `angle_deg` (default `45.0`), `launch_height` (default `0.0`), `gravity` (default `9.8`), `show_components` (default `true`), `show_range` (default `true`) |
+| `circular` | `radius` (default `2.0`), `speed` (default `4.0`), `mass` (default `0.5`), `angle_deg` (default `35.0`), `show_critical` (default `true`), `show_forces` (default `true`) |
+| `motion` | `x0` (default `0.0`), `v0` (default `6.0`), `a` (default `-2.0`), `t_end` (default `0.0`), `show_area` (default `true`) |
+
+**Waves and optics**
+
+| kind | parameters |
+| --- | --- |
+| `wave` | `amplitude` (default `2.0`), `wavelength` (default `4.0`), `cycles` (default `2.0`), `speed` (default `0.0`) |
+| `vibration` | `amplitude` (default `2.0`), `period` (default `0.8`), `cycles` (default `2.5`) |
+| `standingwave` | `amplitude` (default `2.0`), `length` (default `6.0`), `antinodes` (default `3`), `show_envelope` (default `true`) |
+| `refraction` | `n1` (default `1.0`), `n2` (default `1.5`), `incidence_deg` (default `45.0`), `show_critical` (default `true`) |
+| `doubleslit` | `wavelength` (default `600.0`), `slit_separation` (default `0.2`), `distance` (default `1.0`), `window_mm` (default `20.0`), `n_fringes` (default `9`) |
+| `lens` | `f` (default `10.0`), `u` (default `30.0`), `height` (default `6.0`) |
+| `mirror` | `f` (default `10.0`), `u` (default `30.0`), `height` (default `6.0`) |
+
+**Thermal, modern physics and electromagnetism**
+
+| kind | parameters |
+| --- | --- |
+| `pv` | `states` (default `[3.0, 1.0]`), `processes` (default `[['isobar', 3.0], ['isochore', 1.0], ['isobar', 1.0], ['isochore', 3.0]]`), `show_area` (default `true`) |
+| `energylevel` | `z` (default `1.0`), `n_max` (default `4`), `transitions` (default `[[3, 1], [2, 1]]`) |
+| `fieldlines` | `charges`, `n_lines` (default `12`), `n_equi` (default `6`), `extent` (default `3.2`), `show_labels` (default `true`) |
+| `magnetic` | `charge` (default `1.0`), `speed` (default `1.0`), `mass` (default `1.0`), `field` (default `1.0`), `sign` (default `1`), `field_mode` (default `in`), `angle_deg` (default `90.0`) |
+| `induction` | `rod_length` (default `1.0`), `speed` (default `2.0`), `field` (default `0.5`), `resistance` (default `2.0`), `rail_length` (default `3.0`), `field_mode` (default `in`) |
+| `circuit` | `emf` (default `6.0`), `r1` (default `2.0`), `r2` (default `4.0`) |
+| `circuit2` | `emf` (default `6.0`), `r1` (default `2.0`), `r2` (default `3.0`), `rheostat` (default `4.0`), `show_ammeter` (default `true`), `show_voltmeter` (default `true`) |
+
+**Chemistry**
+
+| kind | parameters |
+| --- | --- |
+| `titration` | `analyte_conc` (default `0.1`), `analyte_volume` (default `20.0`), `titrant_conc` (default `0.1`), `ka` (default `1.8e-05`), `mode` (default `acid`), `show_half` (default `true`) |
+| `equilibrium` | `v_f0` (default `1.0`), `v_r0` (default `0.2`), `v_eq` (default `0.0`), `t_change` (default `3.0`), `jump_f` (default `0.6`), `jump_r` (default `0.0`), `tau` (default `0.55`), `t_end` (default `8.0`), `show_shift` (default `true`) |
+| `molecule` | `smiles_list` (default `['CCO']`) |
+
+List parameters (`intervals`, `points`, `knots`, `magnitudes`, `angles`,
+`charges`, `samples`, `transitions`, `processes`) take JSON arrays and default
+to the sample above, so a bare call always draws something sensible.
 
 ### `exam_figure_check`
 

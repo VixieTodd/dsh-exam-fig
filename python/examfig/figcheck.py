@@ -44,6 +44,11 @@ def canon(text):
     t = str(text)
     t = t.replace("\\parallel", "par").replace("\\perp", "perp")
     t = t.replace("\\circ", "").replace("\u00b0", "")
+    # A transition is written ``3 \to 1`` on the figure and ``3->1`` in a stem;
+    # they are the same label, and ``\!`` is only kerning.
+    t = t.replace("\\to", "->").replace("\\rightarrow", "->")
+    t = t.replace("\\!", "")
+    t = t.replace("\u2192", "->").replace("\u2190", "<-")
     t = t.replace("\\mathrm", "").replace("\\text", "")
     t = t.replace("\u2225", "par").replace("\u22a5", "perp")
     # Substring, not \b: in "gparallel" the letters run together, so a word

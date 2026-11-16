@@ -60,9 +60,16 @@ def test_registry():
     from examfig import registry
 
     names = registry.names()
-    check("ten kinds registered", len(names) == 10, ", ".join(names))
+    check("thirty-nine kinds registered", len(names) == 39, ", ".join(names))
     for expected in ("quadratic", "triangle", "cube", "pyramid", "incline",
-                     "circuit", "lens", "mirror", "molecule", "power"):
+                     "circuit", "lens", "mirror", "molecule", "power",
+                     "trig", "numberline", "venn", "explog", "piecewise",
+                     "unitcircle", "solve_triangle", "circleline", "vectors",
+                     "motion", "wave", "vibration", "standingwave",
+                     "refraction", "doubleslit", "energylevel", "pv",
+                     "titration", "equilibrium", "conic", "histogram",
+                     "scatter", "forces", "projectile", "circular",
+                     "fieldlines", "magnetic", "induction", "circuit2"):
         check("kind %s present" % expected, expected in names)
 
     # Unknown parameters must be refused, not silently dropped: a caller who
