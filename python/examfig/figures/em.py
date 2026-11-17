@@ -12,7 +12,7 @@ import math
 
 import numpy as np
 
-from .. import env, layout
+from .. import env, labelplace, layout
 from . import _helpers as H
 
 _C_FIELD = "#1565c0"
@@ -57,6 +57,27 @@ def fieldlines(charges=None, n_lines=12, n_equi=6, extent=3.2,
         raise ValueError("at least one charge must be non-zero")
 
     fig, ax = plt.subplots(figsize=(4.9, 4.5), dpi=300)
+    # The viewport is fixed up front: the charge discs are a fixed size in
+    # *points*, so their radius in data units depends on the scale, and the
+    # seeds below have to be placed outside them.
+    ax.set_xlim(-extent, extent)
+    ax.set_ylim(-extent, extent)
+    ax.set_aspect("equal")
+    fig.canvas.draw()
+    # Convert the marker radius from pixels to data units with the *final*
+    # transform: ``aspect="equal"`` shrinks the axes box when the canvas is
+    # drawn, so a scale measured before that is too generous and the seeds land
+    # inside the disc they were supposed to clear.
+    (x0d, _y0d), (x1d, _y1d) = ax.transData.inverted().transform(
+        [(0.0, 0.0), (1.0, 0.0)])
+    px_per_unit = 1.0 / max(abs(x1d - x0d), 1e-12)
+    disc_r = (11.0 / 2.0) * (fig.dpi / 72.0) / max(px_per_unit, 1e-9)
+    # Seeding inside the disc hides the first stretch of the line under the
+    # marker: at extent=6.5 the disc is 0.20 units across but the seed was at
+    # 0.12, so every line started out invisible and the pixel check called the
+    # figure broken.  One seed radius outside the disc is the fix.
+    seed_r = 1.35 * disc_r
+    stop_r = 1.05 * disc_r
     painted = []
 
     # -- field lines ------------------------------------------------------
@@ -84,7 +105,7 @@ def fieldlines(charges=None, n_lines=12, n_equi=6, extent=3.2,
         seeds = 4 if len(charges) == 1 else max(4, n_lines // 2)
         for i in range(seeds):
             ang = 2.0 * math.pi * i / seeds
-            px, py = qx + 0.12 * math.cos(ang), qy + 0.12 * math.sin(ang)
+            px, py = qx + seed_r * math.cos(ang), qy + seed_r * math.sin(ang)
             xs, ys = [px], [py]
             for _ in range(2600):
                 dx, dy = direction(px, py)
@@ -95,7 +116,7 @@ def fieldlines(charges=None, n_lines=12, n_equi=6, extent=3.2,
                     break
                 # Stop when the line runs into another charge: continuing
                 # through it draws a spurious straight segment out the far side.
-                if any(math.hypot(px - ox, py - oy) < 0.10
+                if any(math.hypot(px - ox, py - oy) < stop_r
                        for ox, oy, oq in charges if oq * q < 0):
                     xs.append(px)
                     ys.append(py)
@@ -260,8 +281,10 @@ def magnetic(charge=1.0, speed=1.0, mass=1.0, field=1.0, sign=1,
             fontsize=9.5, color="#455a64", ha="right", va="center")
     painted.append("r=%s" % H.fmt(r, 2))
     ax.plot([cx], [cy], "o", ms=3.4, color="#455a64", zorder=5)
-    ax.text(cx, cy, "$O'$", fontsize=10, ha="center", va="center",
-            zorder=7)
+    # The centre label is placed after the viewport is fixed, by the search in
+    # ``labelplace``: the circle's radius changes with the numbers in the
+    # question, and at a small radius every fixed offset lands on the arc.
+    centre_label = ((cx, cy), "$O'$")
     painted.append("O'")
 
     ax.text(-span * 0.96, -span * 0.90,
@@ -274,6 +297,10 @@ def magnetic(charge=1.0, speed=1.0, mass=1.0, field=1.0, sign=1,
     ax.set_ylim(-span, span)
     ax.set_aspect("equal")
     ax.axis("off")
+    labelplace.place_labels(
+        ax, [centre_label[0]], [centre_label[1]], fontsize=10,
+        avoid_segments=layout.obstacles(ax),
+        xlim=(-span, span), ylim=(-span, span))
     # The B legend sits on a plate above the field grid; see above.
     report = layout.finish(fig, ax, out_path,
                            skip=("$B=%s\\ \\mathrm{T}$  %s" % (
@@ -337,13 +364,20 @@ def induction(rod_length=1.0, speed=2.0, field=0.5, resistance=2.0,
     ax.plot([0.0, rail], [0.0, 0.0], color="#37474f", lw=2.4, zorder=3)
     ax.plot([0.0, rail], [L, L], color="#37474f", lw=2.4, zorder=3)
     ax.plot([0.0, 0.0], [0.0, L], color="#37474f", lw=2.4, zorder=3)
-    # The resistor as a zig-zag on the left edge.
+    # The resistor as a zig-zag on the left edge.  It sits in the *upper* part of
+    # the rail, not the middle: the Ampere force arrow points left from the rod's
+    # midpoint, and with a short rail its label has to pass close to this edge.
+    # Keeping the zig-zag out of that band is what lets the label fit there.
     zz = np.linspace(0.0, 1.0, 9)
-    zx = 0.10 * L * np.array([0, 1, -1, 1, -1, 1, -1, 1, 0])
-    ax.plot(0.0 + zx, L * (0.30 + 0.40 * zz), color="#37474f", lw=1.6,
+    zx = 0.06 * L * np.array([0, 1, -1, 1, -1, 1, -1, 1, 0])
+    ax.plot(0.0 + zx, L * (0.62 + 0.34 * zz), color="#37474f", lw=1.6,
             zorder=4)
-    ax.text(-0.13 * span_x, L * 0.5, "$R=%s\\ \\Omega$" % H.fmt(R),
-            fontsize=9.5, ha="right", va="center")
+    # Labels are anchored to real geometry and offset in *points*, not in data
+    # units.  The drawing shrinks with ``rod_length`` while the glyphs do not,
+    # so a data-unit offset that clears the frame at L=1 lands outside it at
+    # L=0.2 -- that was the whole failure mode of the first version.
+    H.offset_text(ax, (0.0, 0.0), "$R=%s\\ \\Omega$" % H.fmt(R),
+                  dx_pt=-6.0, dy_pt=-7.0, ha="right", va="top", fontsize=9.5)
     painted.append("R=%s" % H.fmt(R))
 
     # -- the rod ----------------------------------------------------------
@@ -351,15 +385,21 @@ def induction(rod_length=1.0, speed=2.0, field=0.5, resistance=2.0,
     # show the field region it is about to enter.
     x_rod = rail * 0.55
     ax.plot([x_rod, x_rod], [0.0, L], color="#c62828", lw=3.0, zorder=5)
-    ax.text(x_rod, -0.11 * span_y, "$L=%s\\ \\mathrm{m}$" % H.fmt(L),
-            fontsize=9.5, color="#c62828", ha="center", va="top")
+    # The rod length is a property of the rod, but a short rod has no room for a
+    # label inside it, so this one goes under the lower rail, centred on the rod.
+    H.offset_text(ax, (x_rod, 0.0), "$L=%s\\ \\mathrm{m}$" % H.fmt(L),
+                  dy_pt=-5.0, color="#c62828", ha="center", va="top",
+                  fontsize=9.5)
     painted.append("L=%s" % H.fmt(L))
 
-    # Motion arrow.
+    # Motion arrow.  Placed above the upper rail, with the label above it, so
+    # neither the arrow nor the text can land on a rail.
     H.arrow(ax, (x_rod, L * 1.20), (x_rod + 0.18 * rail, L * 1.20),
             color="#2e7d32", lw=1.8, scale=12)
-    ax.text(x_rod + 0.09 * rail, L * 1.20 + 0.05 * L, "$v=%s\\ \\mathrm{m/s}$"
-            % H.fmt(v), fontsize=9.5, color="#2e7d32", ha="left", va="bottom")
+    H.offset_text(ax, (x_rod + 0.09 * rail, L * 1.20),
+                  "$v=%s\\ \\mathrm{m/s}$" % H.fmt(v),
+                  dy_pt=6.0, color="#2e7d32", ha="center", va="bottom",
+                  fontsize=9.5)
     painted.append("v=%s" % H.fmt(v))
 
     # -- current direction ------------------------------------------------
@@ -374,30 +414,55 @@ def induction(rod_length=1.0, speed=2.0, field=0.5, resistance=2.0,
     y_from, y_to = (0.12 * L, 0.88 * L) if upward else (0.88 * L, 0.12 * L)
     H.arrow(ax, (x_rod, y_from), (x_rod, y_to), color="#1565c0", lw=1.6,
             scale=11)
-    ax.text(x_rod + 0.055 * rail, L * 0.5, "$I=%s\\ \\mathrm{A}$"
-            % H.fmt(current, 2), fontsize=9.5, color="#1565c0", ha="left",
-            va="center")
+    # The current label has to live *inside* the gap between the two rails, so
+    # its height must be smaller than that gap.  The gap is in data units and
+    # the glyphs are in points, so the font is solved for rather than fixed.
+    i_fs = H.fit_fontsize(ax, fig, 0.62 * L, base=9.5, floor=6.0)
+    H.offset_text(ax, (x_rod, L * 0.5), "$I=%s\\ \\mathrm{A}$"
+                  % H.fmt(current, 2), dx_pt=7.0, color="#1565c0", ha="left",
+                  va="center", fontsize=i_fs)
     painted.append("I=%s" % H.fmt(current, 2))
 
     # -- opposing force ---------------------------------------------------
     # Ampere's force on the rod: F = B I L, always against the motion.  Drawn on
-    # the rod, pointing left.
-    H.arrow(ax, (x_rod, L * 0.5), (x_rod - 0.16 * rail, L * 0.5),
+    # the rod, pointing left.  The label is right-aligned to the arrow head so it
+    # stays clear of the rod, centred vertically on the arrow so it fits between
+    # the rails, and shrunk to that gap: at small ``rod_length`` the gap is only
+    # a few glyphs tall and a fixed font crossed the upper rail.
+    x_force = x_rod - 0.16 * rail
+    H.arrow(ax, (x_rod, L * 0.5), (x_force, L * 0.5),
             color="#c62828", lw=1.6, scale=11)
-    ax.text(x_rod - 0.17 * rail, L * 0.5, "$F=%s\\ \\mathrm{N}$"
-            % H.fmt(force, 2), fontsize=9.5, color="#c62828", ha="right",
-            va="center")
+    f_txt = H.offset_text(ax, (x_force, L * 0.5), "$F=%s\\ \\mathrm{N}$"
+                          % H.fmt(force, 2), dx_pt=-3.0, dy_pt=0.0,
+                          color="#c62828", ha="right", va="center", fontsize=9.5)
     painted.append("F=%s" % H.fmt(force, 2))
+    # The free run is from the resistor's zig-zag (which reaches 0.06 L to the
+    # right of the left rail) to the arrow head; the label must fit inside it.
+    f_max_w = abs(x_force) - 0.06 * L - 0.06
+    f_max_h = 0.80 * L
+    H.fit_text(ax, fig, f_txt, max_w=f_max_w, max_h=f_max_h)
 
-    ax.text(0.03 * rail, L * 1.30,
-            "$E=BLv=%s\\ \\mathrm{V}$" % H.fmt(emf, 3), fontsize=9.5,
-            color="#37474f", ha="left", va="bottom")
+    H.offset_text(ax, (0.0, L), "$E=BLv=%s\\ \\mathrm{V}$" % H.fmt(emf, 3),
+                  dx_pt=4.0, dy_pt=7.0, color="#37474f", ha="left", va="bottom",
+                  fontsize=9.5)
     painted.append("E=%s" % H.fmt(emf, 3))
 
     ax.set_xlim(-0.22 * span_x, span_x)
     ax.set_ylim(-0.22 * span_y, L * 1.42)
     ax.set_aspect("equal")
     ax.axis("off")
+    # Two problems, both from the same cause: the axes is sized by the data, the
+    # labels by points.  At rod_length=0.2 the box is 85 px tall while a 9.5 pt
+    # label is 40 px, so first give the thin sliver some height, then grow the
+    # viewport until every measured label box is inside it.
+    H.pad_thin_axes(fig, ax)
+    H.expand_to_fit(fig, ax)
+    # Refit after the viewport is final: a label's box in data units depends on
+    # the axis scale, so a fit done before the last set_xlim is stale.
+    H.fit_text(ax, fig, f_txt, max_w=f_max_w, max_h=f_max_h)
+    # Last resort: a label that still crosses a rail or leaves the frame gets
+    # smaller type rather than being printed on top of the drawing.
+    H.shrink_colliding(fig, ax)
     report = layout.finish(fig, ax, out_path)
     return {
         "emf": emf,

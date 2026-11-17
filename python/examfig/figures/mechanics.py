@@ -13,7 +13,7 @@ import math
 
 import numpy as np
 
-from .. import env, layout
+from .. import env, labelplace, layout
 from . import _helpers as H
 
 _G = 9.8
@@ -108,26 +108,25 @@ def forces(magnitudes=None, angles=None, weight=0.0, incline_deg=0.0,
     k = _scale_for(all_mag, room)
 
     tips = []
+    force_labels = []
     for mag, ang in zip(magnitudes, angles):
         rad = math.radians(ang)
         tip = (k * mag * math.cos(rad), k * mag * math.sin(rad))
         H.arrow(ax, (0.0, 0.0), tip, color=_C_FORCE, lw=1.8, scale=13)
-        # The label goes just beyond the tip, along the arrow's own direction:
-        # placing it at a fixed offset would put a short arrow's label on top of
-        # a long one's shaft.
-        off = 0.20
-        ax.text(tip[0] + off * math.cos(rad), tip[1] + off * math.sin(rad),
-                "$F_{%d}=%s\\ \\mathrm{N}$" % (len(tips) + 1, H.fmt(mag)),
-                fontsize=9.5, ha="left" if math.cos(rad) >= 0 else "right",
-                va="center")
+        # The label is placed *after* the viewport is fixed, by the search in
+        # ``labelplace``: a fixed offset beyond the tip is right for most angles
+        # and wrong for the ones that point at the slope or the ground line, and
+        # "wrong" here means the text is printed across a drawn line.
+        force_labels.append(
+            (tip, "$F_{%d}=%s\\ \\mathrm{N}$" % (len(tips) + 1, H.fmt(mag))))
         painted.append("F_%d=%s" % (len(tips) + 1, H.fmt(mag)))
         tips.append(tip)
 
     if weight > 0:
         tip = (0.0, -k * weight)
         H.arrow(ax, (0.0, 0.0), tip, color="#37474f", lw=1.8, scale=13)
-        ax.text(0.16, tip[1] - 0.16, "$G=%s\\ \\mathrm{N}$" % H.fmt(weight),
-                fontsize=9.5, color="#37474f", ha="left", va="top")
+        force_labels.append(
+            (tip, "$G=%s\\ \\mathrm{N}$" % H.fmt(weight)))
         painted.append("G=%s" % H.fmt(weight))
         tips.append(tip)
 
@@ -184,6 +183,14 @@ def forces(magnitudes=None, angles=None, weight=0.0, incline_deg=0.0,
     ax.set_ylim(-span, span)
     ax.set_aspect("equal")
     ax.axis("off")
+    # Labels last, with the viewport already final: ``place_labels`` measures
+    # rendered boxes, and any later change of limits would invalidate every
+    # measurement it made.
+    if force_labels:
+        labelplace.place_labels(
+            ax, [p for p, _ in force_labels], [s for _, s in force_labels],
+            fontsize=9.5, avoid_segments=layout.obstacles(ax),
+            xlim=(-span, span), ylim=(-span, span))
     report = layout.finish(fig, ax, out_path)
     return {
         "magnitudes": magnitudes,
@@ -253,6 +260,8 @@ def projectile(speed=10.0, angle_deg=45.0, height=0.0, launch_height=0.0,
 
     # Launch velocity and its components.  The arrow length is a fraction of the
     # range, so it stays legible whether the throw is short or long.
+    angle_anchor = None
+    angle_text = None
     if show_components:
         k = 0.22 * max(x_range, 1.0) / v0
         H.arrow(ax, (0.0, y0), (k * vx, y0 + k * vy), color="#1a1a1a",
@@ -279,10 +288,12 @@ def projectile(speed=10.0, angle_deg=45.0, height=0.0, launch_height=0.0,
             arc = np.linspace(0.0, th, 40)
             ax.plot(r_arc * np.cos(arc), r_arc * np.sin(arc), color="#455a64",
                     lw=1.0, zorder=4)
-            ax.text(r_arc * 1.12 * math.cos(th * 0.5),
-                    r_arc * 1.12 * math.sin(th * 0.5),
-                    "$%s^\\circ$" % H.fmt(angle_deg, 1), fontsize=9.5,
-                    color="#455a64", ha="left", va="bottom")
+            # The label is placed after the viewport is fixed, by the same
+            # search the force labels use: the arc is a curve, so any fixed
+            # offset from it lands on the curve itself at some launch angles.
+            angle_anchor = (r_arc * math.cos(th * 0.5),
+                            r_arc * math.sin(th * 0.5))
+            angle_text = "$%s^\\circ$" % H.fmt(angle_deg, 1)
             painted.append("%s deg" % H.fmt(angle_deg, 1))
 
     # Peak: a dashed drop to the axis, because "how high does it go" is read
@@ -310,6 +321,11 @@ def projectile(speed=10.0, angle_deg=45.0, height=0.0, launch_height=0.0,
     ax.set_xlim(x_lo, x_hi)
     ax.set_ylim(y_lo, y_hi)
     ax.axis("off")
+    if angle_text is not None:
+        labelplace.place_labels(
+            ax, [angle_anchor], [angle_text], fontsize=9.5,
+            avoid_segments=layout.obstacles(ax),
+            xlim=(x_lo, x_hi), ylim=(y_lo, y_hi))
     report = layout.finish(fig, ax, out_path)
     return {
         "vx": vx,
@@ -353,13 +369,18 @@ def circular(radius=2.0, speed=4.0, mass=0.5, angle_deg=35.0,
     painted.append("track")
 
     # Centre and the two extreme points.  The top is where the critical
-    # condition lives, so it gets a named point.
+    # condition lives, so it gets a named point.  The point labels are offset in
+    # *points*, not data units: the viewport is a multiple of the radius, so a
+    # data offset that clears the circle at r=2 pokes out of the frame at r=0.4.
     H.dot(ax, 0.0, 0.0, color="#455a64", ms=3.4)
-    ax.text(-0.10, -0.12, "$O$", fontsize=10, ha="right", va="top")
+    H.offset_text(ax, (0.0, 0.0), "$O$", dx_pt=-4.0, dy_pt=-4.0, fontsize=10,
+                  ha="right", va="top")
     ax.plot([0.0], [r], "o", ms=4.6, color="#1a1a1a", zorder=5)
-    ax.text(0.0, r + 0.20, "$A$", fontsize=11, ha="center", va="bottom")
+    H.offset_text(ax, (0.0, r), "$A$", dy_pt=6.0, fontsize=11,
+                  ha="center", va="bottom")
     ax.plot([0.0], [-r], "o", ms=4.6, color="#1a1a1a", zorder=5)
-    ax.text(0.0, -r - 0.20, "$B$", fontsize=11, ha="center", va="top")
+    H.offset_text(ax, (0.0, -r), "$B$", dy_pt=-6.0, fontsize=11,
+                  ha="center", va="top")
     painted += ["O", "A", "B"]
 
     # The body at the angle given (measured from the top, going round).
@@ -369,8 +390,8 @@ def circular(radius=2.0, speed=4.0, mass=0.5, angle_deg=35.0,
     ax.plot([0.0, bx], [0.0, by], color="#9e9e9e", lw=1.0, ls=(0, (4, 3)),
             zorder=2)
     ax.plot([bx], [by], "o", ms=7.0, color=_C_COMP, zorder=6)
-    ax.text(bx * 1.10 + 0.10, by * 1.10, "$P$", fontsize=11,
-            color=_C_COMP, ha="left", va="bottom")
+    H.offset_text(ax, (bx, by), "$P$", dx_pt=7.0, dy_pt=4.0, fontsize=11,
+                  color=_C_COMP, ha="left", va="bottom")
     painted.append("P")
 
     if show_forces:
@@ -389,7 +410,8 @@ def circular(radius=2.0, speed=4.0, mass=0.5, angle_deg=35.0,
         ax.text(bx + n_len * ux * 1.16, by + n_len * uy * 1.16, "$N$",
                 fontsize=9.5, color=_C_COMP2, ha="center", va="center")
         painted.append("N")
-        # Centripetal resultant.
+        # Centripetal resultant.  The statement sits inside the loop, where the
+        # circle leaves a clear band under the centre.
         need = m * v * v / r
         ax.text(-0.02 * r, -0.62 * r,
                 "$F_n=\\dfrac{mv^2}{r}=%s\\ \\mathrm{N}$" % H.fmt(need, 2),
@@ -399,18 +421,22 @@ def circular(radius=2.0, speed=4.0, mass=0.5, angle_deg=35.0,
     if show_critical:
         # The critical speed as a labelled statement, placed where the top of
         # the loop has empty space -- outside the circle, above A.
-        ax.text(0.0, r * 1.42,
-                "$v_c=\\sqrt{gr}=%s\\ \\mathrm{m/s}$" % H.fmt(v_crit, 2),
-                fontsize=9.5, color="#c62828", ha="center", va="bottom")
+        H.offset_text(ax, (0.0, r),
+                      "$v_c=\\sqrt{gr}=%s\\ \\mathrm{m/s}$"
+                      % H.fmt(v_crit, 2),
+                      dy_pt=26.0, fontsize=9.5, color="#c62828",
+                      ha="center", va="bottom")
         painted.append("v_c=%s" % H.fmt(v_crit, 2))
         # Whether the body given stays on the track is the answer the question
         # wants; state it, and colour the verdict.
         ok = v >= v_crit
-        ax.text(0.0, -r * 1.42,
-                "$v=%s\\ \\mathrm{m/s}$  %s" % (H.fmt(v, 2),
-                                               "能通过最高点" if ok else "不能到达最高点"),
-                fontsize=9.5, color="#2e7d32" if ok else "#c62828",
-                ha="center", va="top")
+        H.offset_text(ax, (0.0, -r),
+                      "$v=%s\\ \\mathrm{m/s}$  %s"
+                      % (H.fmt(v, 2),
+                         "能通过最高点" if ok else "不能到达最高点"),
+                      dy_pt=-26.0, fontsize=9.5,
+                      color="#2e7d32" if ok else "#c62828",
+                      ha="center", va="top")
         painted.append("v=%s" % H.fmt(v, 2))
         painted.append("能通过最高点" if ok else "不能到达最高点")
 

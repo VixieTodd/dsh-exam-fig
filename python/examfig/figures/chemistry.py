@@ -234,11 +234,16 @@ def equilibrium(v_f0=1.0, v_r0=0.2, v_eq=None, t_change=3.0, jump_f=0.6,
     # What matters is that the visible gap is a small fraction of the jump.
     gap_start = abs(vf_at_change - vr_at_change)
     gap_end = abs(vf_b[-1] - vr_b[-1])
-    if gap_start > 1e-9:
-        assert gap_end < 0.02 * gap_start, \
-            ("forward and reverse rates must settle on the same value: the "
-             "final gap is %.3g%% of the initial one; lengthen t_end or "
-             "shorten tau" % (100.0 * gap_end / gap_start))
+    if gap_start > 1e-9 and gap_end >= 0.02 * gap_start:
+        # A contradiction in the *parameters*, not an internal invariant: the
+        # window ends before the two curves have met.  Raised rather than
+        # asserted so it survives ``python -O`` and reads as what it is.
+        raise ValueError(
+            "the two rates do not settle before t_end: the final gap is %.3g%% "
+            "of the initial one, so the window (t_change=%g to t_end=%g) is "
+            "shorter than the relaxation time tau=%g.  Lengthen t_end or "
+            "shorten tau."
+            % (100.0 * gap_end / gap_start, t1, t_end, tau))
 
     fig, ax = plt.subplots(figsize=(5.4, 3.6), dpi=300)
     painted = []
