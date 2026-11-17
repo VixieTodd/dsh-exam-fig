@@ -180,6 +180,22 @@ def obstacles(ax, include_patches=True):
     return segs
 
 
+def _in_data_space(artist, ax):
+    """Is this text positioned in data coordinates?
+
+    ``resolve`` nudges a label by adding an offset to ``get_position()``, which
+    only means something when the position is in data units.  A panel tag placed
+    with ``transform=ax.transAxes`` reports ``(0.98, 0.96)`` -- axes fractions.
+    Adding a data-unit offset to that put the tag thousands of pixels above the
+    page, and the saved figure lost it entirely.  Such a label is still audited,
+    but it must never be moved this way.
+    """
+    try:
+        return artist.get_transform() == ax.transData
+    except Exception:
+        return False
+
+
 def labels(ax):
     """``[(artist, text), ...]`` for every real text artist on the axes.
 
@@ -288,6 +304,10 @@ def resolve(ax, rounds=4, frame=None, skip=()):
     for _round in range(rounds):
         progress = False
         for artist, text in labels(ax):
+            # Only a label whose position is in data units can be nudged by
+            # adding a data offset to it; see ``_in_data_space``.
+            if not _in_data_space(artist, ax):
+                continue
             current = audit(ax, frame=frame, skip=skip)
             if not any(c["a"] == text or c["b"] == text for c in current):
                 continue

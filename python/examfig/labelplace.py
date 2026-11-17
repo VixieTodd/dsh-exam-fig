@@ -179,7 +179,7 @@ def place_labels(ax, anchors, texts, fontsize=11.0, avoid_segments=(),
     """
     fig = ax.figure
     fig.canvas.draw()
-    renderer = fig.get_renderer()
+    renderer = fig.canvas.get_renderer()
 
     if xlim is None:
         xlim = ax.get_xlim()
