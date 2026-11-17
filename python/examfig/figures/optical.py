@@ -14,6 +14,7 @@ numbers printed in the question match the geometry on the page.
 import numpy as np
 
 from .. import env, layout
+from . import _helpers as H
 
 
 def thin_lens(f=10.0, u=30.0, out_path="phys_lens.png",
@@ -81,12 +82,20 @@ def thin_lens(f=10.0, u=30.0, out_path="phys_lens.png",
     ax.plot([-u, 0], [height, ih], color="#8d8d8d", lw=1.0, zorder=2)
     ax.plot([0, v], [ih, ih], color="#8d8d8d", lw=1.0, zorder=3)
 
-    ax.set_xlim(-u - 6, max(v, f) + 8)
-    ax.set_ylim(-half - 2, half + 2)
+    # A virtual image (u < f) sits far outside the object distance, so the
+    # viewport comes from the geometry actually drawn, not from u.
+    x_lo, x_hi, y_lo, y_hi = H.fit_viewport(
+        ax, fig,
+        xs=[-u, v, 0.0, -f, f],
+        ys=[0.0, height, ih, -half, half],
+        base_h=3.0, min_w=3.6, max_w=10.5)
+    ax.set_xlim(x_lo, x_hi)
+    ax.set_ylim(y_lo, y_hi)
+    ax.set_aspect("equal")
     ax.axis("off")
     report = layout.finish(fig, ax, out_path)
 
-    marks = {"F", "F'", "AB", "%g" % f, "%g" % u}
+    marks = {"F", "F'", "AB", "A'B'", "%g" % f, "%g" % u}
     return {"v": float(v), "magnification": float(mag),
             "focal": float(f), "object_distance": float(u), "marks": marks,
             "layout": report}
@@ -166,10 +175,17 @@ def mirror(f=10.0, u=30.0, out_path="phys_mirror.png", height=6.0, half=16.0):
     at_image1 = height + slope1 * (-v - p1)
     assert abs(at_image1 - ih) < 1e-6, "ray 1 misses the image tip"
 
-    ax.set_xlim(-u - 6, 4)
-    ax.set_ylim(-half - 2, half + 2)
+    x_lo, x_hi, y_lo, y_hi = H.fit_viewport(
+        ax, fig,
+        xs=[-u, -v, 0.0, -f, 0.14 * half],
+        ys=[0.0, height, ih, -half, half],
+        base_h=3.0, min_w=3.6, max_w=10.5)
+    ax.set_xlim(x_lo, x_hi)
+    ax.set_ylim(y_lo, y_hi)
+    ax.set_aspect("equal")
     ax.axis("off")
     report = layout.finish(fig, ax, out_path)
 
     return {"v": float(v), "magnification": float(mag),
-            "marks": {"F", "%g" % f, "%g" % u}, "layout": report}
+            "marks": {"F", "AB", "A'B'", "%g" % f, "%g" % u},
+            "layout": report}

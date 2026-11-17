@@ -188,17 +188,26 @@ def doubleslit(wavelength=600.0, slit_separation=0.20, distance=1.0,
         if abs(xm) > half:
             continue
         w = 0.30 * spacing_mm
-        ax.axvspan(xm - w, xm + w, color="#ffd54f", alpha=0.55, lw=0, zorder=1)
+        # A band marks the bright fringe, so it belongs above the axis, where the
+        # intensity is.  ``axvspan`` spans the whole axes by default, and its
+        # edges then run down through the fringe numbers printed under the axis.
+        ax.add_patch(plt.Rectangle((xm - w, 0.0), 2.0 * w, 1.0,
+                                   facecolor="#ffd54f", alpha=0.55, lw=0,
+                                   zorder=1))
 
     ax.plot(xs_mm, intensity, color="#1a1a1a", lw=1.6, zorder=4)
     ax.set_xlim(-half, half)
-    ax.set_ylim(-0.06, 1.30)
+    # The fringe numbers and the axis title both live under the axis.
+    # The floor has to leave room for both at 300 dpi: text height is
+    # fixed in points while this limit is in data units, so a floor that
+    # just clears one line pushes the other out of the frame.
+    ax.set_ylim(-0.34, 1.30)
 
     ax.annotate("", xy=(half * 0.98, 0.0), xytext=(-half * 0.98, 0.0),
                 arrowprops=dict(arrowstyle="-|>", color="k", lw=1.1), zorder=5)
     ax.annotate("", xy=(-half * 0.98, 1.18), xytext=(-half * 0.98, -0.02),
                 arrowprops=dict(arrowstyle="-|>", color="k", lw=1.1), zorder=5)
-    ax.text(half * 0.97, -0.12, "$x/\\mathrm{mm}$", fontsize=10, ha="right",
+    ax.text(half * 0.97, -0.20, "$x/\\mathrm{mm}$", fontsize=10, ha="right",
             va="top")
     ax.text(-half * 0.94, 1.16, r"$I$", fontsize=10, ha="left", va="top")
     painted += ["x/mm", "I"]
@@ -224,9 +233,9 @@ def doubleslit(wavelength=600.0, slit_separation=0.20, distance=1.0,
         xm = m * spacing_mm
         if abs(xm) >= half * 0.98 or shown >= int(n_fringes):
             break
-        ax.text(xm, -0.05, "%d" % m, fontsize=8.5, ha="center", va="top",
+        ax.text(xm, -0.03, "%d" % m, fontsize=8.5, ha="center", va="top",
                 color="#616161")
-        ax.text(-xm, -0.05, "-%d" % m, fontsize=8.5, ha="center", va="top",
+        ax.text(-xm, -0.03, "-%d" % m, fontsize=8.5, ha="center", va="top",
                 color="#616161")
         shown += 1
 
@@ -257,14 +266,31 @@ def energylevel(z=1.0, n_max=4, transitions=((3, 1), (2, 1)), out_path="phys_ene
     arrow labelled with its photon energy in eV.  Levels are placed by their
     energy, not evenly spaced, because the whole point of the diagram is that
     the gaps shrink.
+
+    That shrinking is also the layout problem: at ``n_max=6`` the levels above
+    n=3 are a fraction of an eV apart while the plot spans more than 13 eV, so a
+    fixed label offset and a fixed font put every one of them on a neighbouring
+    level line.  Two things follow, and both are computed rather than guessed:
+    the figure grows with the number of levels, and each level's labels are
+    sized to the gap on the side they are placed.
     """
     plt = env.pyplot()
     Z = float(z)
     n_max = int(n_max)
-    if n_max < 2:
-        raise ValueError("n_max must be at least 2")
     if Z <= 0:
         raise ValueError("z must be positive")
+
+    pairs = [(int(a), int(b)) for a, b in transitions][:6]
+    # A transition that reaches above the last drawn level would silently
+    # vanish; say which one is wrong instead.
+    for pair in pairs:
+        n_hi, n_lo = pair
+        if not (1 <= n_lo < n_hi <= n_max):
+            raise ValueError(
+                "transition %r does not fit n_max=%d: both levels must satisfy "
+                "1 <= n_lo < n_hi <= n_max.  Raise n_max to at least %d, or "
+                "pass transitions=[] to draw the bare ladder."
+                % (list(pair), n_max, max(n_hi for n_hi, _lo in pairs)))
 
     energies = {n: -_RYDBERG_EV * Z * Z / (n * n) for n in range(1, n_max + 1)}
     # The lowest level is n=1, not n=n_max: energies are negative and get *more*
@@ -272,53 +298,95 @@ def energylevel(z=1.0, n_max=4, transitions=((3, 1), (2, 1)), out_path="phys_ene
     # state far outside the viewport and every label on it was clipped.
     e_lo, e_hi = energies[1], 0.0
 
-    fig, ax = plt.subplots(figsize=(5.6, 4.0), dpi=300)
+    # The page height is solved for, not guessed.  At n_max=6 the top two rungs
+    # of hydrogen are 0.17 eV apart while the ladder spans 14.8 eV, so a 4-inch
+    # page gives that gap about 12 px -- less than a third of one line of type.
+    # Growing the page until the tightest gap can hold a line is the only way to
+    # label every level without stacking text on text.
+    gaps = [energies[n + 1] - energies[n] for n in range(1, n_max)]
+    y_pad = 0.6
+    y_span = (e_hi + y_pad) - (e_lo - y_pad)
+    if gaps:
+        line_px = 5.5 * 300.0 / 72.0 * 1.15      # a 5.5 pt line plus clearance
+        axes_in = y_span * line_px / min(gaps) / 300.0
+        # 12 in, not 9.5: at n_max=6 the top two rungs of hydrogen are 0.17 eV
+        # apart against a 14.8 eV span, and a 9.5 in page left that gap 26 px
+        # tall -- narrower than one line of type at any readable size.
+        fig_h = min(12.0, max(4.0, axes_in / 0.78))
+    else:
+        fig_h = 4.0
+    fig, ax = plt.subplots(figsize=(5.6, fig_h), dpi=300)
     painted = []
 
     x_lo, x_hi = 0.0, 10.0
-    ax.set_xlim(x_lo - 0.4, x_hi + 0.4)
-    ax.set_ylim(e_lo - 1.2, e_hi + 1.2)
+    ax.set_xlim(x_lo - 1.4, x_hi + 1.4)
+    ax.set_ylim(e_lo - y_pad, e_hi + y_pad)
 
-    # Level lines, each with n and its energy.
+    # Each level's labels sit *outside* the line's x-range and are centred on the
+    # level, so a level line can never cross the label that names it.  What can
+    # still go wrong is two neighbouring rungs being closer together than one
+    # line of type -- at n_max=6 the top two are 0.17 eV apart while the plot
+    # spans 13.6 eV.  Those labels are therefore sized to the gap they sit in,
+    # and refitted once more after the viewport is final (see below), because
+    # growing the viewport changes the height of a glyph in data units.
+    level_labels = []
     for n in range(1, n_max + 1):
         e = energies[n]
         ax.plot([x_lo, x_hi], [e, e], color="#1a1a1a", lw=1.8, zorder=3)
-        ax.text(x_lo + 0.12, e + 0.22, "$n=%d$" % n, fontsize=10,
-                ha="left", va="bottom")
-        ax.text(x_hi - 0.12, e + 0.22, "$%s\\ \\mathrm{eV}$" % H.fmt(e, 2),
-                fontsize=9, ha="right", va="bottom", color="#455a64")
+        # Half the label may reach into each neighbouring gap.
+        room = min([g for g in (energies[n + 1] - e if n < n_max else None,
+                                e - energies[n - 1] if n > 1 else None)
+                    if g is not None] or [y_pad])
+        t_n = H.offset_text(ax, (x_lo, e), "$n=%d$" % n, dx_pt=-4.0,
+                            ha="right", va="center", fontsize=10)
+        t_e = H.offset_text(ax, (x_hi, e), "$%s\\ \\mathrm{eV}$" % H.fmt(e, 2),
+                            dx_pt=4.0, ha="left", va="center", fontsize=9,
+                            color="#455a64")
+        level_labels.append((t_n, room, 10.0))
+        level_labels.append((t_e, room, 9.0))
         painted += ["n=%d" % n, H.fmt(e, 2)]
 
     # Ionised limit: n -> infinity has energy 0.
     ax.plot([x_lo, x_hi], [0.0, 0.0], ls=(0, (5, 3)), color="#9e9e9e", lw=1.0,
             zorder=2)
-    ax.text(x_hi - 0.12, 0.22, r"$n=\infty$", fontsize=9, ha="right",
-            va="bottom", color="#757575")
+    H.offset_text(ax, (x_hi, 0.0), r"$n=\infty$", dx_pt=4.0, ha="left",
+                  va="center", fontsize=9, color="#757575")
     painted.append("n=inf")
 
     # Transitions, spread left to right so two arrows between the same pair of
     # levels do not land on top of each other.
+    # One column per transition, spread evenly across the ladder, and the text
+    # alternates sides so two columns can never print into each other: the
+    # photon-energy string ("108.85 eV") is about two units wide on this
+    # scale, wider than a 1.6-unit column pitch.
     span = (x_hi - x_lo)
-    pairs = list(transitions)[:6]
-    for k, pair in enumerate(pairs):
-        n_hi, n_lo = int(pair[0]), int(pair[1])
-        if not (1 <= n_lo < n_hi <= n_max):
-            raise ValueError("transition %r must satisfy 1 <= n_lo < n_hi <= n_max"
-                             % (pair,))
-        x = x_lo + span * (0.30 + 0.16 * k)
+    pitch = span / float(max(2, len(pairs)))
+    for k, (n_hi, n_lo) in enumerate(pairs):
+        x = x_lo + pitch * (k + 0.5)
         e_hi_l, e_lo_l = energies[n_hi], energies[n_lo]
         H.arrow(ax, (x, e_hi_l), (x, e_lo_l), color=_RAY, lw=1.5, zorder=5)
         photon = e_hi_l - e_lo_l
-        nm = 1239.841984 / photon if photon > 0 else float("inf")
         label = "$%d\\!\\to\\!%d$" % (n_hi, n_lo)
-        ax.text(x + 0.16, 0.5 * (e_hi_l + e_lo_l), label, fontsize=9.5,
-                ha="left", va="center", color=_RAY)
-        ax.text(x + 0.16, 0.5 * (e_hi_l + e_lo_l) - 0.62,
-                "$%s\\ \\mathrm{eV}$" % H.fmt(photon, 2), fontsize=8.5,
-                ha="left", va="top", color="#546e7a")
+        mid = 0.5 * (e_hi_l + e_lo_l)
+        right = (k % 2 == 0)
+        dx = 3.0 if right else -3.0
+        H.offset_text(ax, (x, mid), label, dx_pt=dx,
+                      ha="left" if right else "right", va="center",
+                      fontsize=9.5, color=_RAY)
+        H.offset_text(ax, (x, mid), "$%s\\ \\mathrm{eV}$" % H.fmt(photon, 2),
+                      dx_pt=dx, dy_pt=-7.0,
+                      ha="left" if right else "right", va="top",
+                      fontsize=8.5, color="#546e7a")
         painted += ["%d->%d" % (n_hi, n_lo), H.fmt(photon, 2)]
 
     ax.axis("off")
+    H.expand_to_fit(fig, ax)
+    # Now that the viewport is final, size each level label to its gap.  The
+    # constraint is half the distance to each neighbouring rung, so the labels
+    # of two close levels cannot grow into each other.
+    for artist, room, base in level_labels:
+        H.fit_text(ax, fig, artist, max_h=0.92 * room)
+    H.shrink_colliding(fig, ax)
     report = H.finish_panels(fig, [ax], out_path, skip=("n=inf",))
 
     photons = []

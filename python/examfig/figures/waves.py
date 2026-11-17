@@ -147,10 +147,16 @@ def vibration(amplitude=2.0, period=0.8, cycles=2.5, out_path="phys_vibration.pn
         H.dot(ax, c, A, filled=True, color=_CREST, ms=4.2)
         H.dot(ax, c + T / 2.0, -A, filled=True, color=_CREST, ms=4.2)
 
-    ta = crests[0] - 0.10 * T if crests else T / 4.0
+    # The amplitude bracket stands in the margin left of t = 0, where the sine
+    # is *below* the axis, so the upper half of that strip is empty.  Placing it
+    # beside the first crest instead means threading the gap between the
+    # bracket and the rising stretch of the curve, and that gap is a fraction
+    # of a period wide: under a pixel at T = 0.15 s, hundreds of pixels at
+    # T = 3 s.  A margin measured in points is the same width for every period.
+    ta = -0.16 * T
     H.bracket(ax, (ta, 0.0), (ta, A), color="#37474f", lw=1.0)
-    ax.text(ta - 0.02 * T, A / 2.0, "$A=%s$" % H.fmt(A, 2), fontsize=9.5,
-            color="#37474f", ha="right", va="center")
+    H.offset_text(ax, (ta, A / 2.0), "$A=%s$" % H.fmt(A, 2), dx_pt=-5.0,
+                  fontsize=9.5, color="#37474f", ha="right", va="center")
     painted.append("A=%s" % H.fmt(A, 2))
 
     if len(crests) >= 2:
@@ -166,6 +172,15 @@ def vibration(amplitude=2.0, period=0.8, cycles=2.5, out_path="phys_vibration.pn
 
     ax.set_xlim(t_lo, t_hi)
     ax.set_ylim(y_lo, y_hi)
+    # The label sits a fixed number of points left of the bracket, which is a
+    # different number of data units for every period, so the margin is
+    # measured after the scale is final and the axis is widened to fit it.
+    fig.canvas.draw()
+    ppu = H.points_per_unit(ax, fig, axis="x")
+    need = ta - 52.0 / max(ppu, 1e-9)
+    if need < t_lo:
+        t_lo = need
+        ax.set_xlim(t_lo, t_hi)
     ax.axis("off")
     report = H.finish_panels(fig, [ax], out_path,
                              skip=("$t$", "$y$", "$O$"))

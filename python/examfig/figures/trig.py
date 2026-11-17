@@ -129,8 +129,13 @@ def trig(A=1.0, omega=1.0, phi=0.0, shift=0.0, periods=1.0,
     x_hi = max(x_hi, 0.18)
 
     amp = abs(A)
-    y_lo = shift - amp - 0.80
-    y_hi = shift + amp + 1.15          # headroom for the period bracket
+    # The origin is one of the things this figure is asked to show -- ``O`` and
+    # the y-intercept are both marks -- so the frame has to contain y = 0 even
+    # when a vertical shift lifts the whole curve above it.  Clamping instead
+    # of trusting the shift is what keeps ``O`` from being drawn outside the
+    # picture at shift = 2.
+    y_lo = min(shift - amp - 0.80, -0.62)
+    y_hi = max(shift + amp + 1.15, 0.62)   # headroom for the period bracket
 
     fig, ax = plt.subplots(figsize=(5.4, 3.5), dpi=300)
 
