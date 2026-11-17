@@ -24,7 +24,7 @@ import math
 
 import numpy as np
 
-from .. import env, layout
+from .. import env, labelplace, layout
 from . import _helpers as H
 
 _C_TRI = "#1a1a1a"
@@ -88,49 +88,67 @@ def triangle_solve(a=5.0, b=6.0, c=7.0, show_circle=True, show_angles=True,
             "circumcircle misses a vertex"
 
     fig, ax = plt.subplots(figsize=(5.0, 4.4), dpi=300)
-    ax.set_aspect("equal")
 
     if show_circle:
         t = np.linspace(0, 2 * math.pi, 720)
         ax.plot(centre[0] + R * np.cos(t), centre[1] + R * np.sin(t),
                 color=_C_CIRC, lw=1.2, zorder=2)
-        H.dot(ax, centre[0], centre[1], filled=True, color=_C_CIRC, ms=3.8)
-        ax.text(centre[0] - 0.06, centre[1] - 0.06, "$O$", fontsize=10,
-                color=_C_CIRC, ha="right", va="top", zorder=9)
 
     for P, Q in ((A, B), (B, C), (C, A)):
         ax.plot([P[0], Q[0]], [P[1], Q[1]], color=_C_TRI, lw=1.9, zorder=5)
 
+    # The frame is set before any label is placed: every offset below is in
+    # points, and a point is only a fixed number of data units once the scale
+    # is final.  With sides of 1 and 10 in the same figure a data-unit offset
+    # that clears the edge in one case sits on the edge in the other.
+    allp = np.vstack([A, B, C])
+    if show_circle:
+        allp = np.vstack([allp, centre - R, centre + R])
+    ax.set_xlim(float(allp[:, 0].min()), float(allp[:, 0].max()))
+    ax.set_ylim(float(allp[:, 1].min()), float(allp[:, 1].max()))
+    ax.set_aspect("equal")
+    fig.canvas.draw()
+    pad_x = 26.0 / max(H.points_per_unit(ax, fig, axis="x"), 1e-9)
+    pad_y = 26.0 / max(H.points_per_unit(ax, fig, axis="y"), 1e-9)
+    ax.set_xlim(float(allp[:, 0].min()) - pad_x, float(allp[:, 0].max()) + pad_x)
+    ax.set_ylim(float(allp[:, 1].min()) - pad_y, float(allp[:, 1].max()) + pad_y)
+
     painted = []
     centroid = (A + B + C) / 3.0
-    # Vertices: the label goes along the ray away from the centroid, so it
-    # never lands inside the triangle where the angles are.
+    # Every name on this figure is anchored to a point the geometry fixes -- a
+    # vertex, a side midpoint, an angle bisector -- but *which side* of that
+    # point the glyphs go is not fixed: with sides of 1 and 10 in one triangle
+    # there is no single outward direction that stays clear of all three edges.
+    # So the anchors are collected here and the placement search picks the spot
+    # against the finished geometry.
+    anchors = []
+    labels = []
+
+    if show_circle:
+        H.dot(ax, centre[0], centre[1], filled=True, color=_C_CIRC, ms=3.8)
+        anchors.append((float(centre[0]), float(centre[1])))
+        labels.append("$O$")
+
     for name, P in (("A", A), ("B", B), ("C", C)):
         H.dot(ax, P[0], P[1], filled=True, ms=4.4)
-        v = P - centroid
-        n = float(np.linalg.norm(v)) or 1.0
-        p = P + v / n * 0.34
-        ax.text(p[0], p[1], "$%s$" % name, fontsize=12, ha="center",
-                va="center", zorder=9)
+        anchors.append((float(P[0]), float(P[1])))
+        labels.append("$%s$" % name)
         painted.append(name)
 
-    # Side labels at the midpoint, pushed out along the outward normal.
     for name, P, Q, val in (("a", B, C, a), ("b", C, A, b), ("c", A, B, c)):
         mid = 0.5 * (P + Q)
-        d = Q - P
-        n = np.array([-d[1], d[0]])
-        nn = float(np.linalg.norm(n)) or 1.0
-        n = n / nn
-        if np.dot(mid - centroid, n) < 0:
-            n = -n
-        p = mid + n * 0.34
-        ax.text(p[0], p[1], "$%s=%s$" % (name, H.fmt(val)), fontsize=10,
-                ha="center", va="center", zorder=9)
+        anchors.append((float(mid[0]), float(mid[1])))
+        labels.append("$%s=%s$" % (name, H.fmt(val)))
         painted.append("%s=%s" % (name, H.fmt(val)))
 
     if show_angles:
         # Each angle is marked at its vertex, inside the wedge, with the
-        # computed value -- the reader can then add them up and get 180.
+        # computed value -- the reader can then add them up and get 180.  The
+        # arc radius is set in points, so a small triangle keeps the arc inside
+        # the wedge instead of swallowing it.
+        ppu = min(H.points_per_unit(ax, fig, axis="x"),
+                  H.points_per_unit(ax, fig, axis="y"))
+        rr = 20.0 / max(ppu, 1e-9)
         for name, P, Q, R_, val in (("A", A, B, C, Aang),
                                     ("B", B, A, C, Bang),
                                     ("C", C, A, B, Cang)):
@@ -144,29 +162,25 @@ def triangle_solve(a=5.0, b=6.0, c=7.0, show_circle=True, show_angles=True,
                 d -= 2 * math.pi
             while d < -math.pi:
                 d += 2 * math.pi
-            rr = 0.62
             t = np.linspace(ang1, ang1 + d, 80)
             ax.plot(P[0] + rr * np.cos(t), P[1] + rr * np.sin(t),
                     color="#616161", lw=1.0, zorder=4)
             mid = ang1 + d / 2.0
-            p = P + (rr + 0.30) * np.array([math.cos(mid), math.sin(mid)])
-            ax.text(p[0], p[1], r"$%s^{\circ}$" % H.fmt(val, 1),
-                    fontsize=9.5, color="#37474f", ha="center", va="center",
-                    zorder=9)
+            anchors.append((float(P[0] + rr * math.cos(mid)),
+                            float(P[1] + rr * math.sin(mid))))
+            labels.append(r"$%s^{\circ}$" % H.fmt(val, 1))
             painted.append("%s^\\circ" % H.fmt(val, 1))
 
     if show_circle:
-        ax.text(centre[0], centre[1] + R + 0.22,
-                "$R=%s$" % H.fmt(R, 2), fontsize=10, color=_C_CIRC,
-                ha="center", va="bottom")
+        anchors.append((float(centre[0]), float(centre[1] + R)))
+        labels.append("$R=%s$" % H.fmt(R, 2))
         painted.append("R=%s" % H.fmt(R, 2))
 
-    pad = 0.85
-    allp = np.vstack([A, B, C])
-    if show_circle:
-        allp = np.vstack([allp, centre - R, centre + R])
-    ax.set_xlim(allp[:, 0].min() - pad, allp[:, 0].max() + pad)
-    ax.set_ylim(allp[:, 1].min() - pad, allp[:, 1].max() + pad)
+    labelplace.place_labels(
+        ax, anchors, labels, fontsize=10,
+        avoid_segments=layout.obstacles(ax),
+        xlim=ax.get_xlim(), ylim=ax.get_ylim())
+    H.expand_to_fit(fig, ax, pad_pt=5.0)
     ax.axis("off")
     report = layout.finish(fig, ax, out_path)
 

@@ -4,9 +4,12 @@ r"""Plane geometry: parabola and right triangle.
 Both functions derive every coordinate from the parameters the question uses,
 so the picture cannot disagree with the numbers in the prose.
 """
+import math
+
 import numpy as np
 
 from .. import env, layout
+from . import _helpers as H
 
 
 def quadratic(a, b, c, out_path="math_quadratic.png"):
@@ -122,19 +125,40 @@ def triangle(ac, bc, out_path="math_triangle.png"):
     s = min(ac, bc) * 0.14
     ax.plot(*zip(C + [s, 0], C + [s, s], C + [0, s]), "k-", lw=1.0)
 
-    for p, name, off in ((C, "$C$", (-0.26, -0.24)),
-                         (A, "$A$", (0.14, -0.14)),
-                         (B, "$B$", (-0.10, 0.16))):
+    # The frame has to be final before anything is measured: a label's size in
+    # data units is a function of the scale, so an offset that clears an edge at
+    # ac=6 sits on the hypotenuse at ac=0.6.  Every offset below is therefore in
+    # points, and the viewport is padded in points as well.
+    ax.set_xlim(0.0, ac)
+    ax.set_ylim(0.0, bc)
+    ax.set_aspect("equal")
+    fig.canvas.draw()
+    pad_x = 30.0 / max(H.points_per_unit(ax, fig, axis="x"), 1e-9)
+    pad_y = 30.0 / max(H.points_per_unit(ax, fig, axis="y"), 1e-9)
+    ax.set_xlim(-pad_x, ac + pad_x)
+    ax.set_ylim(-pad_y, bc + pad_y)
+
+    for p, name, dx, dy, ha, va in (
+            (C, "$C$", -7.0, -7.0, "right", "top"),
+            (A, "$A$", 7.0, -7.0, "left", "top"),
+            (B, "$B$", -7.0, 7.0, "right", "bottom")):
         ax.plot(*p, "k.", ms=3.5)
-        ax.text(p[0] + off[0], p[1] + off[1], name, fontsize=10)
+        H.offset_text(ax, (float(p[0]), float(p[1])), name,
+                      dx_pt=dx, dy_pt=dy, fontsize=10, ha=ha, va=va)
 
-    ax.text(ac / 2.0, -0.24, "%g" % ac, fontsize=10, ha="center")
-    ax.text(-0.26, bc / 2.0, "%g" % bc, fontsize=10, va="center", ha="right")
-    ax.text(ac / 2.0 + 0.20, bc / 2.0 + 0.16, "%g" % ab, fontsize=10)
-
-    ax.set_xlim(-0.55, ac + 0.45)
-    ax.set_ylim(-0.55, bc + 0.45)
-    ax.axis("off")
+    # Side lengths sit outside their own side, offset along the outward normal.
+    H.offset_text(ax, (ac / 2.0, 0.0), "%g" % ac, dy_pt=-9.0,
+                  fontsize=10, ha="center", va="top")
+    H.offset_text(ax, (0.0, bc / 2.0), "%g" % bc, dx_pt=-9.0,
+                  fontsize=10, ha="right", va="center")
+    hyp = math.hypot(ac, bc)
+    H.offset_text(ax, (ac / 2.0, bc / 2.0), "%g" % ab,
+                  dx_pt=9.0 * (bc / hyp), dy_pt=9.0 * (ac / hyp),
+                  fontsize=10, ha="left", va="bottom")
+    # The hypotenuse label is pushed out along the normal, which is the one
+    # direction the initial pad could not predict; grow the frame to the boxes
+    # that were actually written.
+    H.expand_to_fit(fig, ax, pad_pt=4.0)
     report = layout.finish(fig, ax, out_path)
 
     return {"hypotenuse": ab, "right_angle_at": "C",

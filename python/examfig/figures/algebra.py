@@ -179,8 +179,11 @@ def piecewise(knots=((-3.0, -1.0), (-1.0, 1.0), (1.0, -2.0), (3.0, 0.0)),
         reach = 3.6
         xs = np.linspace(vx - reach, vx + reach, 900)
         ys = np.abs(a * xs + b) + c
-        x_lo = float(min(xs.min(), vx) - 0.5)
-        x_hi = float(max(xs.max(), vx) + 0.5)
+        # The axes are drawn through the origin, so the origin has to be inside
+        # the viewport.  A vertex far from it (abs_b=-6 puts the vertex at x=6)
+        # would otherwise push the y axis -- and its label -- off the page.
+        x_lo = float(min(xs.min(), vx, 0.0) - 0.5)
+        x_hi = float(max(xs.max(), vx, 0.0) + 0.5)
         y_lo = float(min(ys.min(), 0.0) - 0.7)
         y_hi = float(max(ys.max(), 1.0) + 0.7)
         painted += H.frame(ax, (x_lo, x_hi), (y_lo, y_hi), style="center")
@@ -202,7 +205,7 @@ def piecewise(knots=((-3.0, -1.0), (-1.0, 1.0), (1.0, -2.0), (3.0, 0.0)),
             raise ValueError("pieces mode needs at least two knots")
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
-        x_lo, x_hi = min(xs) - 0.8, max(xs) + 0.8
+        x_lo, x_hi = min(xs + [0.0]) - 0.8, max(xs + [0.0]) + 0.8
         y_lo, y_hi = min(ys + [0.0]) - 0.9, max(ys + [0.0]) + 0.9
         painted += H.frame(ax, (x_lo, x_hi), (y_lo, y_hi), style="center")
         ax.plot(xs, ys, color=_C_EXP, lw=2.0, zorder=5,
