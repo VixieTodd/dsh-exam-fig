@@ -474,6 +474,31 @@ Both are dependency-free — no pytest, no test framework. They assert on the
 passes on a beautifully drawn wrong figure, which is the whole failure mode
 this project exists to prevent.
 
+### The parameter grid
+
+Default parameters are the easy case, and they are the only case a
+default-parameters test ever sees. Every numeric parameter is therefore swept
+to a low and a high value with the rest held at their defaults, and each
+resulting figure has to pass all of these:
+
+- `layout.remaining` empty — no label on a line, on another label, or outside the frame
+- no blank label (every mark the figure claims is really painted)
+- no `curve_failures` — sampled points of every drawn line have ink nearby
+- no ink touching the border
+
+That sweep is what found the failures the default parameters hid: a rod of
+0.2 m on 3 m rails put every label off the page, a vertical shift of 2 moved
+the origin outside a sine plot, and a 0.3-unit cube left its vertex names
+touching their own edges. The rule it enforces is the one this repository
+keeps relearning: **an offset in data units and a font size in points do not
+scale together**, so anything positioned by a constant has to be positioned
+against the final viewport or not at all.
+
+A value the figure legitimately refuses — three sides that do not close, a
+window shorter than the relaxation time, a level below the requested
+transition — raises `ValueError` with the reason, and is a bad input rather
+than a layout defect. Those ranges are excluded from the sweep, not silenced.
+
 ---
 
 ## Why not pip
